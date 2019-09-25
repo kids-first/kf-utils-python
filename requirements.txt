@@ -1,1 +1,1 @@
--e git+ssh://git@github.com/d3b-center/d3b-python-utils.git#egg=d3b_utils
+d3b_utils @ git+ssh://git@github.com/d3b-center/d3b-python-utils.git
