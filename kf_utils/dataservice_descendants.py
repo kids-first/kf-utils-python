@@ -72,8 +72,7 @@ def find_descendants_by_kfids(
         unrelated to the given start_kfids.
     :returns: dict mapping endpoints to their sets of discovered kfids
     """
-    # Storage for direct foreign key descendancy from families down to genomic
-    # files, not including pure relationship tables like BSDG.
+    # Map of direct foreign key descendancy from families down to genomic files
     descendancy = {
         "families": [("participants", "family_id")],
         "participants": [
@@ -84,10 +83,16 @@ def find_descendants_by_kfids(
             ("diagnoses", "participant_id"),
             ("biospecimens", "participant_id"),
         ],
-        "biospecimens": [("genomic-files", "biospecimen_id")],
+        "biospecimens": [
+            ("genomic-files", "biospecimen_id"),
+            ("biospecimen-diagnoses", "biospecimen_id")
+        ],
         "genomic-files": [
             ("read-groups", "genomic_file_id"),
+            ("read-group-genomic-files", "genomic_file_id"),
             ("sequencing-experiments", "genomic_file_id"),
+            ("sequencing-experiment-genomic-files", "genomic_file_id"),
+            ("biospecimen-genomic-files", "genomic_file_id")
         ],
     }
 
