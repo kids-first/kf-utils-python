@@ -63,7 +63,8 @@ d2 = find_descendants_by_filter(
 ```
 
 ```Python
-# list genomic files with contributions from these biospecimens that also have contributions from biospecimens that aren't these
+# list genomic files with contributions from these biospecimens that also have 
+# contributions from biospecimens that aren't these
 promiscuous_gs = find_descendant_genomic_files_with_extra_contributors(
   host, ["BS_11111111", "BS_22222222", "BS_33333333"]
 )
