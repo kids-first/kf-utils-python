@@ -5,33 +5,39 @@ in those participants, etc).
 from kf_utils.dataservice.scrape import yield_entities, yield_kfids
 
 
-def find_descendant_genomic_files_with_extra_contributors(host, specimen_kfids):
+def find_genomic_files_with_extra_contributors(host, bs_kfids, gf_kfids=None):
     """
     Given a set of biospecimen KFIDs, find the KFIDs of descendant genomic
     files that also descend from biospecimes that aren't included in the given
-    set.
+    set. If you already know the set of descendant genomic files, you may pass
+    them in to save some time.
 
     e.g. If BS_1234567 and BS_7654321 both contribute to GF_11112222, but you
     only specify one of the two BSIDs, then GF_11112222 will be returned.
     If you specify both of them, then GF_11112222 will _not_ be returned.
 
-    :param host: dataservice_api_host ("https://kf-api-dataservice.kidsfirstdrc.org")
-    :param specimen_kfids: iterable of biospecimen KFIDs
+    :param host: dataservice_api_host
+    ("https://kf-api-dataservice.kidsfirstdrc.org")
+    :param bs_kfids: iterable of biospecimen KFIDs
+    :param gf_kfids: iterable of genomic file KFIDs (optional)
     :returns: set of genomic file KFIDs satisfying the above definition
     """
-    gens = set()
-    for k in specimen_kfids:
-        gens.update(
-            set(yield_kfids(host, "genomic-files", {"biospecimen_id": k}, show_progress=True))
-        )
+    if not gf_kfids:
+        gens = set()
+        for k in bs_kfids:
+            gens.update(
+                set(yield_kfids(host, "genomic-files", {"biospecimen_id": k}, show_progress=True))
+            )
+    else:
+        gens = set(gf_kfids)
+
     has_extra_contributors = set()
     for g in gens:
         contributors = set(yield_kfids(
             host, "biospecimens", {"genomic_file_id": g}, show_progress=True
         ))
-        if not contributors.issubset(specimen_kfids):
+        if not contributors.issubset(bs_kfids):
             has_extra_contributors.add(g)
-    endpoint = "genomic-files"
     return has_extra_contributors
 
 
@@ -104,8 +110,9 @@ def find_descendants_by_kfids(
                 # the specified set
                 descendant_kfids[
                     "genomic-files"
-                ] -= find_descendant_genomic_files_with_extra_contributors(
-                    host, descendant_kfids["biospecimens"]
+                ] -= find_genomic_files_with_extra_contributors(
+                    host, descendant_kfids["biospecimens"],
+                    descendant_kfids["genomic-files"]
                 )
             _inner(
                 host,
