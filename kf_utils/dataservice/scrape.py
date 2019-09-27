@@ -1,5 +1,3 @@
-from sys import stderr
-
 from d3b_utils.requests_retry import Session
 
 

@@ -2,7 +2,7 @@
 Methods for finding descendant entities (participants in families, biospecimens
 in those participants, etc).
 """
-from kf_utils.dataservice_scrape import yield_entities
+from kf_utils.dataservice.scrape import yield_entities
 
 
 def __find_kfids_by_filter(host, endpoint, filter):
