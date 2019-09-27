@@ -1,7 +1,7 @@
 from d3b_utils.requests_retry import Session
 
 
-def yield_entities(host, endpoint, filters):
+def yield_entities(host, endpoint, filters, show_progress=False):
     """
     Scrape the dataservice for paginated entities matching the filter params.
 
@@ -37,6 +37,8 @@ def yield_entities(host, endpoint, filters):
             kfid = entity["kf_id"]
             if kfid not in found_kfids:
                 found_kfids.add(kfid)
+                if show_progress:
+                    print(".", end="", flush=True)
                 yield entity
         try:
             for (key, i) in [("after", 1), ("after_uuid", 2)]:
@@ -46,3 +48,9 @@ def yield_entities(host, endpoint, filters):
 
     num = len(found_kfids)
     assert expected == num, f"FOUND {num} ENTITIES BUT EXPECTED {expected}"
+
+
+def yield_kfids(host, endpoint, filters, show_progress=False):
+    """Simple wrapper around yield_entities that yields just the KFIDs"""
+    for e in yield_entities(host, endpoint, filters, show_progress):
+        yield e["kf_id"]

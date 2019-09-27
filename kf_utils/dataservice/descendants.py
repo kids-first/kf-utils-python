@@ -2,19 +2,7 @@
 Methods for finding descendant entities (participants in families, biospecimens
 in those participants, etc).
 """
-from kf_utils.dataservice.scrape import yield_entities
-
-
-def __find_kfids_by_filter(host, endpoint, filter):
-    """
-    Wrapper for returning a set of only KFIDs from
-    kf_utils.dataservice_scrape.yield_entities
-    """
-    kfids = set()
-    for e in yield_entities(host, endpoint, filter):
-        kfids.add(e["kf_id"])
-        print(".", end="", flush=True)
-    return kfids
+from kf_utils.dataservice.scrape import yield_entities, yield_kfids
 
 
 def find_descendant_genomic_files_with_extra_contributors(host, specimen_kfids):
@@ -34,13 +22,13 @@ def find_descendant_genomic_files_with_extra_contributors(host, specimen_kfids):
     gens = set()
     for k in specimen_kfids:
         gens.update(
-            __find_kfids_by_filter(host, "genomic-files", {"biospecimen_id": k})
+            set(yield_kfids(host, "genomic-files", {"biospecimen_id": k}, show_progress=True))
         )
     has_extra_contributors = set()
     for g in gens:
-        contributors = __find_kfids_by_filter(
-            host, "biospecimens", {"genomic_file_id": g}
-        )
+        contributors = set(yield_kfids(
+            host, "biospecimens", {"genomic_file_id": g}, show_progress=True
+        ))
         if not contributors.issubset(specimen_kfids):
             has_extra_contributors.add(g)
     endpoint = "genomic-files"
@@ -107,7 +95,7 @@ def find_descendants_by_kfids(
             descendant_kfids[child_endpoint] = set()
             for k in kfids:
                 descendant_kfids[child_endpoint].update(
-                    __find_kfids_by_filter(host, child_endpoint, {foreign_key: k})
+                    set(yield_kfids(host, child_endpoint, {foreign_key: k}, show_progress=True))
                 )
             if (
                 child_endpoint == "genomic-files"
@@ -145,7 +133,7 @@ def find_descendants_by_filter(
     Like find_descendants_by_kfids but starts with an endpoint filter instead
     of a list of endpoint KFIDs.
     """
-    endpoint_kfids = __find_kfids_by_filter(host, endpoint, filter)
+    endpoint_kfids = set(yield_kfids(host, endpoint, filter, show_progress=True))
     kfid_sets = find_descendants_by_kfids(
         host, endpoint, endpoint_kfids, include_gfs_with_external_contributors
     )
