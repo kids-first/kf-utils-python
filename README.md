@@ -14,7 +14,7 @@ Using pip
 
 ### Dataservice
 
-#### Query scraper
+#### [dataservice/scrape.py](kf_utils/dataservice/scrape.py) - Query scraping
 
 The Kids First dataservice paginates its responses and can only return up
 to 100 results per page. This simplifies the process of retrieving all
@@ -29,7 +29,7 @@ for e in yield_entities(
   ...
 ```
 
-#### Descendant entity finder
+#### [dataservice/descendants.py](kf_utils/dataservice/descendants.py) - Descendant entity discovery
 
 Entities in the dataservice are linked to each other by descendancy
 relationships. Participants descend from families. Biospecimens/phenotypes/etc
@@ -70,7 +70,7 @@ promiscuous_gs = find_descendant_genomic_files_with_extra_contributors(
 )
 ```
 
-#### Patch submitter
+#### [dataservice/patch.py](kf_utils/dataservice/patch.py) - Rapid patch submission
 
 Streamline patching the dataservice quickly.
 
