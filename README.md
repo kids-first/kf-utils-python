@@ -12,6 +12,8 @@ Using pip
 
 ## Included so far
 
+n.b. View individual files for informative docstrings and other usage comments.
+
 ### Dataservice
 
 #### [dataservice/scrape.py](kf_utils/dataservice/scrape.py) - Query scraping
