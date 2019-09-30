@@ -47,29 +47,44 @@ from kf_utils.dataservice.descendants import (
 
 host = "https://kf-api-dataservice.kidsfirstdrc.org"
 
-# Get descendant entities for these families
+# Get descendant entities for these families, including any genomic files that
+# are only partially composed of these families' biospecimens
 d1 = find_descendants_by_kfids(
     host, "families", ["FM_11111111", "FM_22222222", "FM_33333333"],
-    include_gfs_with_external_contributors=False
+    ignore_gfs_with_hidden_external_contribs=False
 )
 ```
 
 ```Python
-# get descendant entities for visible families in SD_DYPMEHHF
+# Get descendant entities for hidden families in SD_DYPMEHHF, but only include
+genomic files with other contributing biospecimens if those specimens are visible
 d2 = find_descendants_by_filter(
-    host, "families", {"study_id": "SD_DYPMEHHF", "visible": True},
-    include_gfs_with_external_contributors=False
+    host, "families", {"study_id": "SD_DYPMEHHF", "visible": False},
+    ignore_gfs_with_hidden_external_contribs=True
 )
 ```
 
 ```Python
-# list genomic files with contributions from these biospecimens that also have 
+# List genomic files with contributions from these biospecimens that also have 
 # contributions from biospecimens that aren't these
-promiscuous_gs = find_descendant_genomic_files_with_extra_contributors(
+promiscuous_gs = find_gfs_with_extra_contributors(
   host, ["BS_11111111", "BS_22222222", "BS_33333333"]
 )
 ```
 
+```Python
+# Hide all visible families in study SD_DYPMEHHF and all of their descendants.
+# This and show_all_descendants_by_filter are not symmetrical.
+hide_all_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": True})
+```
+
+```Python
+# Unhide all hidden families in study SD_DYPMEHHF and all of their descendants except for
+# genomic files with additional contributing specimens if those specimens will remain 
+# hidden.
+# This and hide_all_descendants_by_filter are not symmetrical.
+show_all_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": False})
+```
 #### [dataservice/patch.py](kf_utils/dataservice/patch.py) - Rapid patch submission
 
 Streamline patching the dataservice quickly.
