@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from d3b_utils.requests_retry import Session
-from kf_utils.dataservice.meta import prefix_endpoints, prefix
+from kf_utils.dataservice.meta import prefix, prefix_endpoints
 
 
 def send_patches(host, patches):
@@ -63,11 +63,11 @@ def hide_kfids(host, kfid_list):
     patch_things_with_func(host, kfid_list, hide_function)
 
 
-def show_kfids(host, kfid_list):
+def unhide_kfids(host, kfid_list):
     """
-    Show a set of KFIDs
+    Unhide a set of KFIDs
 
     :param host: dataservice base url string (e.g. "http://localhost:5000")
-    :param kfid_list: list of kfids to show
+    :param kfid_list: list of kfids to unhide
     """
     patch_things_with_func(host, kfid_list, lambda x: {"visible": True})

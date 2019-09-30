@@ -23,7 +23,7 @@ to 100 results per page. This simplifies the process of retrieving all
 of the entities from all of the pages for a given query.
 
 ```Python
-from kf_utils.dataservice.scrape import yield_entities
+from kf_utils.dataservice.scrape import *
 
 for e in yield_entities(
     kf_api_url, "participants", {"study_id": "SD_12345678"}
@@ -41,11 +41,7 @@ When we change a set of entities (e.g. hiding or unhiding), we may also want to
 change their descendant entities.
 
 ```Python
-from kf_utils.dataservice.descendants import (
-    find_descendants_by_kfids,
-    find_descendants_by_filter,
-    find_descendant_genomic_files_with_extra_contributors
-)
+from kf_utils.dataservice.descendants import *
 
 host = "https://kf-api-dataservice.kidsfirstdrc.org"
 
@@ -67,7 +63,7 @@ d2 = find_descendants_by_filter(
 ```
 
 ```Python
-# List genomic files with contributions from these biospecimens that also have 
+# List genomic files with contributions from these biospecimens that also have
 # contributions from biospecimens that aren't these
 promiscuous_gs = find_gfs_with_extra_contributors(
   host, ["BS_11111111", "BS_22222222", "BS_33333333"]
@@ -76,28 +72,23 @@ promiscuous_gs = find_gfs_with_extra_contributors(
 
 ```Python
 # Hide all visible families in study SD_DYPMEHHF and all of their descendants.
-# This and show_all_descendants_by_filter are not symmetrical.
-hide_all_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": True})
+# This and unhide_descendants_by_filter are not symmetrical.
+hide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": True})
 ```
 
 ```Python
 # Unhide all hidden families in study SD_DYPMEHHF and all of their descendants except for
-# genomic files with additional contributing specimens if those specimens will remain 
+# genomic files with additional contributing specimens if those specimens will remain
 # hidden.
-# This and hide_all_descendants_by_filter are not symmetrical.
-show_all_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": False})
+# This and hide_descendants_by_filter are not symmetrical.
+unhide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": False})
 ```
 #### [dataservice/patch.py](kf_utils/dataservice/patch.py) - Rapid patch submission
 
 Streamline patching the dataservice quickly.
 
 ```Python
-from kf_utils.dataservice.patch import (
-    send_patches,
-    patch_things_with_func,
-    hide_kfids,
-    show_kfids
-)
+from kf_utils.dataservice.patch import *
 
 host = "http://localhost:5000"
 
@@ -128,6 +119,6 @@ hide_kfids(host, ["PT_12345678", "BS_99999999"])
 ```
 
 ```Python
-# Show the given KFIDs
-show_kfids(host, ["PT_12345678", "BS_99999999"])
+# Unhide the given KFIDs
+unhide_kfids(host, ["PT_12345678", "BS_99999999"])
 ```

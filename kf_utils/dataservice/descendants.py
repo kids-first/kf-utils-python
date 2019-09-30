@@ -2,7 +2,7 @@
 Methods for finding descendant entities (participants in families, biospecimens
 in those participants, etc).
 """
-from kf_utils.dataservice.patch import hide_kfids, show_kfids
+from kf_utils.dataservice.patch import hide_kfids, unhide_kfids
 from kf_utils.dataservice.scrape import yield_entities, yield_kfids
 
 
@@ -178,9 +178,9 @@ def find_descendants_by_filter(
     return kfid_sets
 
 
-def hide_all_descendants_by_filter(host, endpoint, filter):
+def hide_descendants_by_filter(host, endpoint, filter):
     """
-    Be aware that this and show_all_descendants_by_filter are not symmetrical.
+    Be aware that this and unhide_descendants_by_filter are not symmetrical.
 
     Hiding hides partially contributed descendants, but showing only shows
     partially contributed descendants if all other contributors are visible.
@@ -192,9 +192,9 @@ def hide_all_descendants_by_filter(host, endpoint, filter):
         hide_kfids(host, v)
 
 
-def show_all_descendants_by_filter(host, endpoint, filter):
+def unhide_descendants_by_filter(host, endpoint, filter):
     """
-    Be aware that this and hide_all_descendants_by_filter are not symmetrical.
+    Be aware that this and hide_descendants_by_filter are not symmetrical.
 
     Hiding hides partially contributed descendants, but showing only shows
     partially contributed descendants if all other contributors are visible.
@@ -203,4 +203,4 @@ def show_all_descendants_by_filter(host, endpoint, filter):
     """
     desc = find_descendants_by_filter(host, endpoint, filter, True)
     for k, v in desc.items():
-        show_kfids(host, v)
+        unhide_kfids(host, v)
