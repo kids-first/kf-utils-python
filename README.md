@@ -109,7 +109,7 @@ things = [
 def my_patch_func(thing):
     return {"external_id": "VISIBLE" if thing["visible"] else "HIDDEN"}
 
-# Patch the given KFIDs according to the result of the function
+# Patch the given KFIDs or entities according to the result of the function
 patch_things_with_func(host, things, my_patch_func)
 ```
 
