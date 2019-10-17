@@ -55,7 +55,7 @@ d1 = find_descendants_by_kfids(
 
 ```Python
 # Get descendant entities for hidden families in SD_DYPMEHHF, but only include
-genomic files with other contributing biospecimens if those specimens are visible
+# genomic files with other contributing biospecimens if those specimens are visible
 d2 = find_descendants_by_filter(
     host, "families", {"study_id": "SD_DYPMEHHF", "visible": False},
     ignore_gfs_with_hidden_external_contribs=True
