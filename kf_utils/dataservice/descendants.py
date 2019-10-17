@@ -204,3 +204,31 @@ def unhide_descendants_by_filter(host, endpoint, filter):
     desc = find_descendants_by_filter(host, endpoint, filter, True)
     for k, v in desc.items():
         unhide_kfids(host, v)
+
+
+def hide_descendants_by_kfids(host, endpoint, kfids):
+    """
+    Be aware that this and unhide_descendants_by_kfids are not symmetrical.
+
+    Hiding hides partially contributed descendants, but showing only shows
+    partially contributed descendants if all other contributors are visible.
+    If you anticipate needing symmetrical behavior, keep a record of what you
+    change.
+    """
+    desc = find_descendants_by_kfids(host, endpoint, kfids, False)
+    for k, v in desc.items():
+        hide_kfids(host, v)
+
+
+def unhide_descendants_by_kfids(host, endpoint, kfids):
+    """
+    Be aware that this and hide_descendants_by_kfids are not symmetrical.
+
+    Hiding hides partially contributed descendants, but showing only shows
+    partially contributed descendants if all other contributors are visible.
+    If you anticipate needing symmetrical behavior, keep a record of what you
+    change.
+    """
+    desc = find_descendants_by_kfids(host, endpoint, kfids, True)
+    for k, v in desc.items():
+        unhide_kfids(host, v)
