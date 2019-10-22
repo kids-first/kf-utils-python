@@ -87,17 +87,16 @@ unhide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visi
 `descendants.py` also provides wrapper functions hiding/unhiding descendants by KF ID(s):
 
 ```Python
-# Hide all visible families in study SD_DYPMEHHF and all of their descendants.
+# Hide these families and all of their descendants.
 # This and unhide_descendants_by_kfids are not symmetrical.
-hide_descendants_by_kfids(host, "families", ["SD_DYPMEHHF"])
+hide_descendants_by_kfids(host, "families", ["FM_12345678", "FM_87654321"])
 ```
 
 ```Python
-# Unhide all hidden families in study SD_DYPMEHHF and all of their descendants except for
-# genomic files with additional contributing specimens if those specimens will remain
-# hidden.
+# Unhide these families and all of their descendants except for genomic files with 
+# additional contributing specimens if those specimens will remain hidden.
 # This and hide_descendants_by_kfids are not symmetrical.
-unhide_descendants_kfids(host, "families", ["SD_DYPMEHHF"])
+unhide_descendants_kfids(host, "families", ["FM_12345678", "FM_87654321"])
 ```
 
 #### [dataservice/patch.py](kf_utils/dataservice/patch.py) - Rapid patch submission
