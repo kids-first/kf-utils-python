@@ -25,7 +25,14 @@ of the entities from all of the pages for a given query.
 ```Python
 from kf_utils.dataservice.scrape import *
 
+# Yield all entities from the given endpoint matching the given query
 for e in yield_entities(
+    kf_api_url, "participants", {"study_id": "SD_12345678"}
+):
+  ...
+
+# Like yield_entities but just yields the kfids
+for kfid in yield_kfids(
     kf_api_url, "participants", {"study_id": "SD_12345678"}
 ):
   ...
@@ -93,7 +100,7 @@ hide_descendants_by_kfids(host, "families", ["FM_12345678", "FM_87654321"])
 ```
 
 ```Python
-# Unhide these families and all of their descendants except for genomic files with 
+# Unhide these families and all of their descendants except for genomic files with
 # additional contributing specimens if those specimens will remain hidden.
 # This and hide_descendants_by_kfids are not symmetrical.
 unhide_descendants_kfids(host, "families", ["FM_12345678", "FM_87654321"])
@@ -137,4 +144,15 @@ hide_kfids(host, ["PT_12345678", "BS_99999999"])
 ```Python
 # Unhide the given KFIDs
 unhide_kfids(host, ["PT_12345678", "BS_99999999"])
+```
+
+### dbGaP
+
+#### [dbgap/release.py](kf_utils/dbgap/release.py) - dbGaP release XML scraping
+
+```Python
+from kf_utils.dbgap.release import get_latest_released_sample_status
+
+# Get the sample status data for the latest "released" version of this study
+versioned_accession, study_data = get_latest_released_sample_status("phs001138")
 ```
