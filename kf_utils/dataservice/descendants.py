@@ -2,8 +2,14 @@
 Methods for finding descendant entities (participants in families, biospecimens
 in those participants, etc).
 """
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from kf_utils.dataservice.patch import hide_kfids, unhide_kfids
 from kf_utils.dataservice.scrape import yield_entities, yield_kfids
+
+
+def _accumulate(func, *args, **kwargs):
+    return list(func(*args, **kwargs))
 
 
 def find_gfs_with_extra_contributors(host, bs_kfids, gf_kfids=None):
@@ -30,38 +36,46 @@ def find_gfs_with_extra_contributors(host, bs_kfids, gf_kfids=None):
     nature of the return will depend on the visibility of the extra
     contributors.
     """
+    bs_kfids = set(bs_kfids)
     if not gf_kfids:
-        gens = set()
-        for k in bs_kfids:
-            gens.update(
-                set(yield_kfids(host, "genomic-files", {"biospecimen_id": k}, show_progress=True))
-            )
+        gf_kfids = set()
+        with ThreadPoolExecutor() as tpex:
+            futures = [
+                tpex.submit(_accumulate, yield_entities, host, "biospecimen-genomic-files", {"biospecimen_id": k}, show_progress=True)
+                for k in bs_kfids
+            ]
+            for f in as_completed(futures):
+                for bg in f.result():
+                    gf_kfids.add(bg["_links"]["genomic_file"].rsplit("/", 1)[1])
     else:
-        gens = set(gf_kfids)
+        gf_kfids = set(gf_kfids)
 
     has_extra_contributors = {
         "mixed_visibility": set(),
         "hidden": set(),
         "visible": set(),
     }
-    for g in gens:
-        contribs = {
-            e["kf_id"]: (e["visible"] == True)  # just in case any are null?
-            for e in yield_entities(
-                host, "biospecimens", {"genomic_file_id": g}, show_progress=True
-            )
+    with ThreadPoolExecutor() as tpex:
+        futures = {
+            tpex.submit(_accumulate, yield_entities, host, "biospecimens", {"genomic_file_id": g}, show_progress=True): g
+            for g in gf_kfids
         }
-        contrib_kfids = set(contribs.keys())
-        bs_kfids = set(bs_kfids)
-        if not contrib_kfids.issubset(bs_kfids):
-            extra_kfids = contrib_kfids - bs_kfids
-            extras_visible = set(contribs[k] for k in extra_kfids)
-            if (False in extras_visible) and (True in extras_visible):
-                has_extra_contributors["mixed_visibility"].add(g)
-            elif False in extras_visible:
-                has_extra_contributors["all_hidden"].add(g)
-            else:
-                has_extra_contributors["all_visible"].add(g)
+        for f in as_completed(futures):
+            g = futures[f]
+            contribs = {
+                bs["kf_id"]: (bs["visible"] is True)  # just in case any are null?
+                for bs in f.result()
+            }
+            contrib_kfids = set(contribs.keys())
+            if not contrib_kfids.issubset(bs_kfids):
+                extra_kfids = contrib_kfids - bs_kfids
+                extras_visible = set(contribs[k] for k in extra_kfids)
+                if (False in extras_visible) and (True in extras_visible):
+                    has_extra_contributors["mixed_visibility"].add(g)
+                elif False in extras_visible:
+                    has_extra_contributors["hidden"].add(g)
+                else:
+                    has_extra_contributors["visible"].add(g)
     return has_extra_contributors
 
 
@@ -96,27 +110,35 @@ def find_descendants_by_kfids(
         hidden biospecimens unrelated to the given start_kfids.
     :returns: dict mapping endpoints to their sets of discovered kfids
     """
+
+    def field(which):
+        return lambda e: e[which]
+
+    def link(which):
+        return lambda e: e["_links"][which].rsplit("/", 1)[1]
+
     # Map of direct foreign key descendancy from families down to genomic files
     descendancy = {
-        "families": [("participants", "family_id")],
+        "studies": [("families", None, "study_id", field("kf_id"))],
+        "families": [("participants", None, "family_id", field("kf_id"))],
         "participants": [
-            ("family-relationships", "participant1_id"),
-            ("family-relationships", "participant2_id"),
-            ("outcomes", "participant_id"),
-            ("phenotypes", "participant_id"),
-            ("diagnoses", "participant_id"),
-            ("biospecimens", "participant_id"),
+            ("family-relationships", None, "participant1_id", field("kf_id")),
+            ("family-relationships", None, "participant2_id", field("kf_id")),
+            ("outcomes", None, "participant_id", field("kf_id")),
+            ("phenotypes", None, "participant_id", field("kf_id")),
+            ("diagnoses", None, "participant_id", field("kf_id")),
+            ("biospecimens", None, "participant_id", field("kf_id")),
         ],
         "biospecimens": [
-            ("genomic-files", "biospecimen_id"),
-            ("biospecimen-diagnoses", "biospecimen_id")
+            ("genomic-files", "biospecimen-genomic-files", "biospecimen_id", link("genomic_file")),
+            ("biospecimen-diagnoses", None, "biospecimen_id", field("kf_id"))
         ],
         "genomic-files": [
-            ("read-groups", "genomic_file_id"),
-            ("read-group-genomic-files", "genomic_file_id"),
-            ("sequencing-experiments", "genomic_file_id"),
-            ("sequencing-experiment-genomic-files", "genomic_file_id"),
-            ("biospecimen-genomic-files", "genomic_file_id")
+            ("read-groups", None, "genomic_file_id", field("kf_id")),
+            ("read-group-genomic-files", None, "genomic_file_id", field("kf_id")),
+            ("sequencing-experiments", None, "genomic_file_id", field("kf_id")),
+            ("sequencing-experiment-genomic-files", None, "genomic_file_id", field("kf_id")),
+            ("biospecimen-genomic-files", None, "genomic_file_id", field("kf_id"))
         ],
     }
 
@@ -127,12 +149,18 @@ def find_descendants_by_kfids(
         ignore_gfs_with_hidden_external_contribs,
         descendant_kfids,
     ):
-        for (child_endpoint, foreign_key) in descendancy.get(endpoint, []):
+        for (child_endpoint, via_endpoint, foreign_key, how) in descendancy.get(endpoint, []):
+            if via_endpoint is None:
+                via_endpoint = child_endpoint
             descendant_kfids[child_endpoint] = set()
-            for k in kfids:
-                descendant_kfids[child_endpoint].update(
-                    set(yield_kfids(host, child_endpoint, {foreign_key: k}, show_progress=True))
-                )
+            with ThreadPoolExecutor() as tpex:
+                futures = [
+                    tpex.submit(_accumulate, yield_entities, host, via_endpoint, {foreign_key: k}, show_progress=True)
+                    for k in kfids
+                ]
+                for f in as_completed(futures):
+                    for e in f.result():
+                        descendant_kfids[child_endpoint].add(how(e))
             if (
                 (child_endpoint == "genomic-files")
                 and ignore_gfs_with_hidden_external_contribs
@@ -143,8 +171,9 @@ def find_descendants_by_kfids(
                     host, descendant_kfids["biospecimens"],
                     descendant_kfids["genomic-files"]
                 )
-                descendant_kfids["genomic-files"] -= extra_contrib_gfs["all_hidden"]
+                descendant_kfids["genomic-files"] -= extra_contrib_gfs["hidden"]
                 descendant_kfids["genomic-files"] -= extra_contrib_gfs["mixed_visibility"]
+        for (child_endpoint, via_endpoint, foreign_key, how) in descendancy.get(endpoint, []):
             _inner(
                 host,
                 child_endpoint,
