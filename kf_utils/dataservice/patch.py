@@ -47,7 +47,7 @@ def patch_things_with_func(host, things, patch_func):
     send_patches(host, patches)
 
 
-def hide_kfids(host, kfid_list):
+def hide_kfids(host, kfid_list, gf_acl=None):
     """
     Hide a set of KFIDs
 
@@ -56,7 +56,7 @@ def hide_kfids(host, kfid_list):
     """
     def hide_function(k):
         if prefix_endpoints[prefix(k)] == "genomic-files":
-            return {"visible": False, "acl": []}
+            return {"visible": False, "acl": gf_acl or []}
         else:
             return {"visible": False}
 

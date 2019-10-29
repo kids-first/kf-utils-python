@@ -207,7 +207,7 @@ def find_descendants_by_filter(
     return kfid_sets
 
 
-def hide_descendants_by_filter(host, endpoint, filter):
+def hide_descendants_by_filter(host, endpoint, filter, gf_acl=None):
     """
     Be aware that this and unhide_descendants_by_filter are not symmetrical.
 
@@ -218,7 +218,7 @@ def hide_descendants_by_filter(host, endpoint, filter):
     """
     desc = find_descendants_by_filter(host, endpoint, filter, False)
     for k, v in desc.items():
-        hide_kfids(host, v)
+        hide_kfids(host, v, gf_acl)
 
 
 def unhide_descendants_by_filter(host, endpoint, filter):
@@ -235,7 +235,7 @@ def unhide_descendants_by_filter(host, endpoint, filter):
         unhide_kfids(host, v)
 
 
-def hide_descendants_by_kfids(host, endpoint, kfids):
+def hide_descendants_by_kfids(host, endpoint, kfids, gf_acl=None):
     """
     Be aware that this and unhide_descendants_by_kfids are not symmetrical.
 
@@ -246,7 +246,7 @@ def hide_descendants_by_kfids(host, endpoint, kfids):
     """
     desc = find_descendants_by_kfids(host, endpoint, kfids, False)
     for k, v in desc.items():
-        hide_kfids(host, v)
+        hide_kfids(host, v, gf_acl)
 
 
 def unhide_descendants_by_kfids(host, endpoint, kfids):
