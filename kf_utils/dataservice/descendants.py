@@ -80,7 +80,8 @@ def find_gfs_with_extra_contributors(host, bs_kfids, gf_kfids=None):
 
 
 def find_descendants_by_kfids(
-    host, start_endpoint, start_kfids, ignore_gfs_with_hidden_external_contribs
+    host, start_endpoint, start_kfids, ignore_gfs_with_hidden_external_contribs,
+    kfids_only=True
 ):
     """
     Given a set of KFIDs from a specified endpoint, find the KFIDs of all
@@ -104,10 +105,11 @@ def find_descendants_by_kfids(
 
     :param host: dataservice_api_host ("https://kf-api-dataservice.kidsfirstdrc.org")
     :param start_endpoint: endpoint of the starting kfids being passed in
-    :param start_kfids: starting kfids associated with the start_endpoint
+    :param start_kfids: iterable starting kfids associated with the start_endpoint
     :param ignore_gfs_with_hidden_external_contribs: whether to ignore
         genomic files (and their descendants) that contain information from
         hidden biospecimens unrelated to the given start_kfids.
+    :param kfids_only: only return KFIDs, not entire entities
     :returns: dict mapping endpoints to their sets of discovered kfids
     """
 
@@ -130,7 +132,10 @@ def find_descendants_by_kfids(
             ("biospecimens", None, "participant_id", field("kf_id")),
         ],
         "biospecimens": [
-            ("genomic-files", "biospecimen-genomic-files", "biospecimen_id", link("genomic_file")),
+            {
+                False: ("genomic-files", None, "biospecimen_id", field("kf_id")),
+                True: ("genomic-files", "biospecimen-genomic-files", "biospecimen_id", link("genomic_file"))
+            },
             ("biospecimen-diagnoses", None, "biospecimen_id", field("kf_id"))
         ],
         "genomic-files": [
@@ -147,12 +152,18 @@ def find_descendants_by_kfids(
         endpoint,
         kfids,
         ignore_gfs_with_hidden_external_contribs,
-        descendant_kfids,
+        descendants,
     ):
-        for (child_endpoint, via_endpoint, foreign_key, how) in descendancy.get(endpoint, []):
+        for hookup in descendancy.get(endpoint, []):
+            if isinstance(hookup, dict):
+                hookup = hookup[kfids_only]
+            (child_endpoint, via_endpoint, foreign_key, how) = hookup
             if via_endpoint is None:
                 via_endpoint = child_endpoint
-            descendant_kfids[child_endpoint] = set()
+            if kfids_only:
+                descendants[child_endpoint] = set()
+            else:
+                descendants[child_endpoint] = dict()
             with ThreadPoolExecutor() as tpex:
                 futures = [
                     tpex.submit(_accumulate, yield_entities, host, via_endpoint, {foreign_key: k}, show_progress=True)
@@ -160,7 +171,10 @@ def find_descendants_by_kfids(
                 ]
                 for f in as_completed(futures):
                     for e in f.result():
-                        descendant_kfids[child_endpoint].add(how(e))
+                        if kfids_only:
+                            descendants[child_endpoint].add(how(e))
+                        else:
+                            descendants[child_endpoint][how(e)] = e
             if (
                 (child_endpoint == "genomic-files")
                 and ignore_gfs_with_hidden_external_contribs
@@ -168,43 +182,59 @@ def find_descendants_by_kfids(
                 # Ignore multi-specimen genomic files that have hidden
                 # contributing specimens which are not in the descendants
                 extra_contrib_gfs = find_gfs_with_extra_contributors(
-                    host, descendant_kfids["biospecimens"],
-                    descendant_kfids["genomic-files"]
+                    host, descendants["biospecimens"],
+                    descendants["genomic-files"]
                 )
-                descendant_kfids["genomic-files"] -= extra_contrib_gfs["hidden"]
-                descendant_kfids["genomic-files"] -= extra_contrib_gfs["mixed_visibility"]
-        for (child_endpoint, via_endpoint, foreign_key, how) in descendancy.get(endpoint, []):
+                to_remove = extra_contrib_gfs["hidden"] | extra_contrib_gfs["mixed_visibility"]
+                if kfids_only:
+                    descendants["genomic-files"] -= to_remove
+                else:
+                    descendants["genomic-files"] = {
+                        k: v for k, v in descendants["genomic-files"].items()
+                        if k not in to_remove
+                    }
+        for hookup in descendancy.get(endpoint, []):
+            if isinstance(hookup, dict):
+                hookup = hookup[kfids_only]
+            (child_endpoint, _, _, _) = hookup
             _inner(
                 host,
                 child_endpoint,
-                descendant_kfids[child_endpoint],
+                descendants[child_endpoint],
                 ignore_gfs_with_hidden_external_contribs,
-                descendant_kfids,
+                descendants,
             )
 
-    descendant_kfids = {start_endpoint: start_kfids}
+    descendants = {start_endpoint: start_kfids}
     _inner(
         host,
         start_endpoint,
         start_kfids,
         ignore_gfs_with_hidden_external_contribs,
-        descendant_kfids,
+        descendants,
     )
-    return descendant_kfids
+    return descendants
 
 
 def find_descendants_by_filter(
-    host, endpoint, filter, ignore_gfs_with_hidden_external_contribs
+    host, endpoint, filter, ignore_gfs_with_hidden_external_contribs,
+    kfids_only=True
 ):
     """
     Like find_descendants_by_kfids but starts with an endpoint filter instead
     of a list of endpoint KFIDs.
     """
-    endpoint_kfids = set(yield_kfids(host, endpoint, filter, show_progress=True))
-    kfid_sets = find_descendants_by_kfids(
-        host, endpoint, endpoint_kfids, ignore_gfs_with_hidden_external_contribs
+    things = {
+        e["kf_id"]: e
+        for e in yield_entities(host, endpoint, filter, show_progress=True)
+    }
+    if kfids_only:
+        things = set(things.keys())
+    descendants = find_descendants_by_kfids(
+        host, endpoint, things, ignore_gfs_with_hidden_external_contribs,
+        kfids_only
     )
-    return kfid_sets
+    return descendants
 
 
 def hide_descendants_by_filter(host, endpoint, filter):

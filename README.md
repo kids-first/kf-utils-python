@@ -56,16 +56,16 @@ host = "https://kf-api-dataservice.kidsfirstdrc.org"
 # are only partially composed of these families' biospecimens
 d1 = find_descendants_by_kfids(
     host, "families", ["FM_11111111", "FM_22222222", "FM_33333333"],
-    ignore_gfs_with_hidden_external_contribs=False
+    ignore_gfs_with_hidden_external_contribs=False, kfids_only=False
 )
 ```
 
 ```Python
-# Get descendant entities for hidden families in SD_DYPMEHHF, but only include
+# Get descendant kfids for hidden families in SD_DYPMEHHF, but only include
 # genomic files with other contributing biospecimens if those specimens are visible
 d2 = find_descendants_by_filter(
     host, "families", {"study_id": "SD_DYPMEHHF", "visible": False},
-    ignore_gfs_with_hidden_external_contribs=True
+    ignore_gfs_with_hidden_external_contribs=True, kfids_only=True
 )
 ```
 
