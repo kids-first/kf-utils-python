@@ -79,8 +79,11 @@ promiscuous_gs = find_gfs_with_extra_contributors(
 
 ```Python
 # Hide all visible families in study SD_DYPMEHHF and all of their descendants.
+# Genomic files receive the specified acl.
 # This and unhide_descendants_by_filter are not symmetrical.
-hide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": True})
+hide_descendants_by_filter(
+  host, "families", {"study_id": "SD_DYPMEHHF", "visible": True}, gf_acl=["SD_DYPMEHHF", "phs001436.c999"]
+)
 ```
 
 ```Python
@@ -94,9 +97,12 @@ unhide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visi
 `descendants.py` also provides wrapper functions hiding/unhiding descendants by KF ID(s):
 
 ```Python
-# Hide these families and all of their descendants.
+# Hide these families and all of their descendants. Genomic files receive the
+# specified acl.
 # This and unhide_descendants_by_kfids are not symmetrical.
-hide_descendants_by_kfids(host, "families", ["FM_12345678", "FM_87654321"])
+hide_descendants_by_kfids(
+  host, "families", ["FM_12345678", "FM_87654321"], gf_acl=["SD_DYPMEHHF", "phs001436.c999"]
+)
 ```
 
 ```Python
@@ -137,8 +143,8 @@ patch_things_with_func(host, things, my_patch_func)
 ```
 
 ```Python
-# Hide the given KFIDs
-hide_kfids(host, ["PT_12345678", "BS_99999999"])
+# Hide the given KFIDs and assign an empty acl to the hidden genomic file
+hide_kfids(host, ["PT_12345678", "GF_99999999"], gf_acl=[])
 ```
 
 ```Python
