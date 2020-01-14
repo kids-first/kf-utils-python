@@ -8,7 +8,7 @@ Python >= 3.6
 
 Using pip
 
-`pip install -e git+ssh://git@github.com/kids-first/kf-utils-python.git#egg=kf_utils`
+`pip install -e git+https://git@github.com/kids-first/kf-utils-python.git#egg=kf_utils`
 
 ## Included so far
 
