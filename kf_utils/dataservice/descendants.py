@@ -257,7 +257,7 @@ def find_descendants_by_kfids(
         e.g. "https://kf-api-dataservice.kidsfirstdrc.org" or
         "postgres://<USERNAME>:<PASSWORD>@kf-dataservice-postgres-prd.kids-first.io:5432/kfpostgresprd"
     :param parent_endpoint: endpoint of the starting kfids being passed in
-    :param parents: iterable starting kfids or entities associated with the
+    :param parents: iterable of starting kfids or entities associated with the
         parent_endpoint
     :param ignore_gfs_with_hidden_external_contribs: whether to ignore
         genomic files (and their descendants) that contain information from
@@ -290,11 +290,11 @@ def find_descendants_by_kfids(
         table_to_endpoint = {v: k for k, v in endpoint_to_table.items()}
         parent_type = endpoint_to_table[parent_endpoint]
 
-    if isinstance(parents[0], dict):
+    if isinstance(next(iter(parents)), None), dict):
         parent_kfids = set(p["kf_id"] for p in parents)
         descendants = {parent_type: {p["kf_id"]: p for p in parents}}
     else:
-        parent_kfids = parents
+        parent_kfids = set(parents)
         descendants = {parent_type: {k: k for k in parent_kfids}}
 
     if use_api:
@@ -405,12 +405,11 @@ def find_descendants_by_filter(
     Similar to find_descendants_by_kfids but starts with an API endpoint filter
     instead of a list of endpoint KFIDs.
     """
-    things = {
-        e["kf_id"]: e
-        for e in yield_entities(api_url, endpoint, filter, show_progress=True)
-    }
+    things = list(
+        yield_entities(api_url, endpoint, filter, show_progress=True)
+    )
     if kfids_only:
-        things = set(things.keys())
+        things = [t["kf_id"] for t in things]
     descendants = find_descendants_by_kfids(
         db_url or api_url,
         endpoint,
@@ -431,7 +430,7 @@ def hide_descendants_by_filter(api_url, endpoint, filter, gf_acl=None, db_url=No
     change.
     """
     desc = find_descendants_by_filter(api_url, endpoint, filter, False, db_url=db_url)
-    for k, v in desc.items():
+    for v in desc.values():
         hide_kfids(api_url, v, gf_acl)
 
 
@@ -445,7 +444,7 @@ def unhide_descendants_by_filter(api_url, endpoint, filter, db_url=None):
     change.
     """
     desc = find_descendants_by_filter(api_url, endpoint, filter, True, db_url=db_url)
-    for k, v in desc.items():
+    for v in desc.values():
         unhide_kfids(api_url, v)
 
 
@@ -459,7 +458,7 @@ def hide_descendants_by_kfids(api_url, endpoint, kfids, gf_acl=None, db_url=None
     change.
     """
     desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, False)
-    for k, v in desc.items():
+    for v in desc.values():
         hide_kfids(api_url, v, gf_acl)
 
 
@@ -473,5 +472,5 @@ def unhide_descendants_by_kfids(api_url, endpoint, kfids, db_url=None):
     change.
     """
     desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, True)
-    for k, v in desc.items():
+    for v in desc.values():
         unhide_kfids(api_url, v)
