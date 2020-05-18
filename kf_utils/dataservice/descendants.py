@@ -2,7 +2,11 @@
 Methods for finding descendant entities (participants in families, biospecimens
 in those participants, etc).
 """
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import psycopg2
+import psycopg2.extras
 
 from kf_utils.dataservice.patch import hide_kfids, unhide_kfids
 from kf_utils.dataservice.scrape import yield_entities, yield_kfids
@@ -12,15 +16,83 @@ def _accumulate(func, *args, **kwargs):
     return list(func(*args, **kwargs))
 
 
-def find_gfs_with_extra_contributors(host, bs_kfids, gf_kfids=None):
+# Maps of direct foreign key descendancy from studies down to genomic files
+# {parent_endpoint: [(child_endpoint, link_on_parent, link_on_child), ...], ...}
+_db_descendancy = {
+    "study": [
+        ("participant", "kf_id", "study_id"),
+        # We need to specially handle getting to families from studies, because
+        # the database layout does not match the logical data arrangement, so
+        # just add a stub here for family.
+        ("family", None, None)
+    ],
+    "family": [
+        ("participant", "kf_id", "family_id")
+    ],
+    "participant": [
+        ("family_relationship", "kf_id", "participant1_id"),
+        ("family_relationship", "kf_id", "participant2_id"),
+        ("outcome", "kf_id", "participant_id"),
+        ("phenotype", "kf_id", "participant_id"),
+        ("diagnosis", "kf_id", "participant_id"),
+        ("biospecimen", "kf_id", "participant_id"),
+    ],
+    "biospecimen": [
+        ("biospecimen_genomic_file", "kf_id", "biospecimen_id"),
+        ("biospecimen_diagnosis", "kf_id", "biospecimen_id"),
+    ],
+    "biospecimen_genomic_file": [("genomic_file", "genomic_file_id", "kf_id")],
+    "genomic_file": [
+        ("read_group_genomic_file", "kf_id", "genomic_file_id"),
+        ("sequencing_experiment_genomic_file", "kf_id", "genomic_file_id"),
+        ("biospecimen_genomic_file", "kf_id", "genomic_file_id"),
+    ],
+    "read_group_genomic_file": [("read_group", "read_group_id", "kf_id")],
+    "sequencing_experiment_genomic_file": [
+        ("sequencing_experiment", "sequencing_experiment_id", "kf_id")
+    ],
+}
+_api_descendancy = {
+    "studies": [
+        ("participants", "kf_id", "study_id"),
+        ("families", "kf_id", "study_id"),
+    ],
+    "families": [("participants", "kf_id", "family_id")],
+    "participants": [
+        ("family-relationships", "kf_id", "participant1_id"),
+        ("family-relationships", "kf_id", "participant2_id"),
+        ("outcomes", "kf_id", "participant_id"),
+        ("phenotypes", "kf_id", "participant_id"),
+        ("diagnoses", "kf_id", "participant_id"),
+        ("biospecimens", "kf_id", "participant_id"),
+    ],
+    "biospecimens": [
+        ("genomic-files", "kf_id", "biospecimen_id"),
+        ("biospecimen-diagnoses", "kf_id", "biospecimen_id"),
+    ],
+    "genomic-files": [
+        ("read-groups", "kf_id", "genomic_file_id"),
+        ("read-group-genomic-files", "kf_id", "genomic_file_id"),
+        ("sequencing-experiments", "kf_id", "genomic_file_id"),
+        ("sequencing-experiment-genomic-files", "kf_id", "genomic_file_id"),
+        ("biospecimen-genomic-files", "kf_id", "genomic_file_id"),
+    ],
+}
+
+
+def find_gfs_with_extra_contributors(api_or_db_url, bs_kfids, gf_kfids=None):
     """
     Given a set of biospecimen KFIDs, find the KFIDs of descendant genomic
     files that also descend from biospecimens that aren't included in the given
     set. If you already know the full set of descendant genomic files, you may
     pass them in to save some time.
 
-    :param host: dataservice_api_host
-        e.g. "https://kf-api-dataservice.kidsfirstdrc.org"
+    Special performance note: a database connect url will run MUCH faster
+    compared to a dataservice api host
+
+    :param api_or_db_url: dataservice api host _or_ database connect url
+        e.g. "https://kf-api-dataservice.kidsfirstdrc.org" or
+        "postgres://<USERNAME>:<PASSWORD>@kf-dataservice-postgres-prd.kids-first.io:5432/kfpostgresprd"
     :param bs_kfids: iterable of biospecimen KFIDs
     :param gf_kfids: iterable of genomic file KFIDs (optional)
     :returns: sets of KFIDs of genomic files with contributing biospecimens not
@@ -36,17 +108,83 @@ def find_gfs_with_extra_contributors(host, bs_kfids, gf_kfids=None):
     nature of the return will depend on the visibility of the extra
     contributors.
     """
+    if api_or_db_url.startswith(("http:", "https:")):
+        return _find_gfs_with_extra_contributors_with_http_api(
+            api_or_db_url, bs_kfids, gf_kfids=None
+        )
+    else:
+        return _find_gfs_with_extra_contributors_with_db_conn(
+            api_or_db_url, bs_kfids, gf_kfids=None
+        )
+
+
+def _find_gfs_with_extra_contributors_with_db_conn(
+    db_url, bs_kfids, gf_kfids=None
+):
+    """See find_gfs_with_extra_contributors"""
+    sql = (
+        "select distinct extra.genomic_file_id, biospecimen.visible from"
+        " biospecimen_genomic_file bg join biospecimen_genomic_file extra"
+        " on bg.genomic_file_id = extra.genomic_file_id"
+        " join biospecimen"
+        " on biospecimen.kf_id = extra.biospecimen_id"
+        " where bg.biospecimen_id in %s and extra.biospecimen_id not in %s"
+    )
+
+    bs_kfids = tuple(bs_kfids)
+    kfid_tuples = (bs_kfids, bs_kfids)
+    if gf_kfids:
+        kfid_tuples = (bs_kfids, bs_kfids, tuple(gf_kfids))
+        sql += " and extra.genomic_file_id in %s"
+
+    has_extra_contributors = {
+        "mixed_visibility": set(),
+        "hidden": set(),
+        "visible": set(),
+    }
+
+    storage = defaultdict(set)
+    with psycopg2.connect(db_url) as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(sql, kfid_tuples)
+            for r in cur.fetchall():
+                storage[r["genomic_file_id"]].add(r["visible"])
+
+    for gfid, visset in storage.items():
+        if (False in visset) and (True in visset):
+            has_extra_contributors["mixed_visibility"].add(gfid)
+        elif False in visset:
+            has_extra_contributors["hidden"].add(gfid)
+        else:
+            has_extra_contributors["visible"].add(gfid)
+
+    return has_extra_contributors
+
+
+def _find_gfs_with_extra_contributors_with_http_api(
+    api_url, bs_kfids, gf_kfids=None
+):
+    """See find_gfs_with_extra_contributors"""
     bs_kfids = set(bs_kfids)
     if not gf_kfids:
         gf_kfids = set()
         with ThreadPoolExecutor() as tpex:
             futures = [
-                tpex.submit(_accumulate, yield_entities, host, "biospecimen-genomic-files", {"biospecimen_id": k}, show_progress=True)
+                tpex.submit(
+                    _accumulate,
+                    yield_entities,
+                    api_url,
+                    "biospecimen-genomic-files",
+                    {"biospecimen_id": k},
+                    show_progress=True,
+                )
                 for k in bs_kfids
             ]
             for f in as_completed(futures):
                 for bg in f.result():
-                    gf_kfids.add(bg["_links"]["genomic_file"].rsplit("/", 1)[1])
+                    gf_kfids.add(
+                        bg["_links"]["genomic_file"].rsplit("/", 1)[1]
+                    )
     else:
         gf_kfids = set(gf_kfids)
 
@@ -57,14 +195,20 @@ def find_gfs_with_extra_contributors(host, bs_kfids, gf_kfids=None):
     }
     with ThreadPoolExecutor() as tpex:
         futures = {
-            tpex.submit(_accumulate, yield_entities, host, "biospecimens", {"genomic_file_id": g}, show_progress=True): g
+            tpex.submit(
+                _accumulate,
+                yield_entities,
+                api_url,
+                "biospecimens",
+                {"genomic_file_id": g},
+                show_progress=True,
+            ): g
             for g in gf_kfids
         }
         for f in as_completed(futures):
             g = futures[f]
             contribs = {
-                bs["kf_id"]: (bs["visible"] is True)  # just in case any are null?
-                for bs in f.result()
+                bs["kf_id"]: (bs["visible"] is True) for bs in f.result()
             }
             contrib_kfids = set(contribs.keys())
             if not contrib_kfids.issubset(bs_kfids):
@@ -80,7 +224,11 @@ def find_gfs_with_extra_contributors(host, bs_kfids, gf_kfids=None):
 
 
 def find_descendants_by_kfids(
-    host, start_endpoint, start_kfids, ignore_gfs_with_hidden_external_contribs
+    api_or_db_url,
+    parent_endpoint,
+    parents,
+    ignore_gfs_with_hidden_external_contribs,
+    kfids_only=True,
 ):
     """
     Given a set of KFIDs from a specified endpoint, find the KFIDs of all
@@ -102,112 +250,177 @@ def find_descendants_by_kfids(
     ignore_gfs_with_hidden_external_contribs=False so that everything linked to
     the hidden biospecimens also get hidden.
 
-    :param host: dataservice_api_host ("https://kf-api-dataservice.kidsfirstdrc.org")
-    :param start_endpoint: endpoint of the starting kfids being passed in
-    :param start_kfids: starting kfids associated with the start_endpoint
+    Special performance note: a database connect url will run MUCH faster
+    compared to a dataservice api host
+
+    :param api_or_db_url: dataservice api host _or_ database connect url
+        e.g. "https://kf-api-dataservice.kidsfirstdrc.org" or
+        "postgres://<USERNAME>:<PASSWORD>@kf-dataservice-postgres-prd.kids-first.io:5432/kfpostgresprd"
+    :param parent_endpoint: endpoint of the starting kfids being passed in
+    :param parents: iterable of starting kfids or entities associated with the
+        parent_endpoint
     :param ignore_gfs_with_hidden_external_contribs: whether to ignore
         genomic files (and their descendants) that contain information from
-        hidden biospecimens unrelated to the given start_kfids.
+        hidden biospecimens unrelated to the given parents.
+    :param kfids_only: only return KFIDs, not entire entities
     :returns: dict mapping endpoints to their sets of discovered kfids
     """
+    use_api = api_or_db_url.startswith(("http:", "https:"))
 
-    def field(which):
-        return lambda e: e[which]
+    if use_api:
+        parent_type = parent_endpoint
+    else:
+        endpoint_to_table = {
+            "studies": "study",
+            "participants": "participant",
+            "family-relationships": "family_relationship",
+            "outcomes": "outcome",
+            "phenotypes": "phenotype",
+            "diagnoses": "diagnosis",
+            "biospecimens": "biospecimen",
+            "families": "family",
+            "biospecimen-genomic-files": "biospecimen_genomic_file",
+            "biospecimen-diagnoses": "biospecimen_diagnosis",
+            "genomic-files": "genomic_file",
+            "read-group-genomic-files": "read_group_genomic_file",
+            "sequencing-experiment-genomic-files": "sequencing_experiment_genomic_file",
+            "read-groups": "read_group",
+            "sequencing-experiments": "sequencing_experiment",
+        }
+        table_to_endpoint = {v: k for k, v in endpoint_to_table.items()}
+        parent_type = endpoint_to_table[parent_endpoint]
 
-    def link(which):
-        return lambda e: e["_links"][which].rsplit("/", 1)[1]
+    if isinstance(next(iter(parents), None), dict):
+        parent_kfids = set(p["kf_id"] for p in parents)
+        descendants = {parent_type: {p["kf_id"]: p for p in parents}}
+    else:
+        parent_kfids = set(parents)
+        descendants = {parent_type: {k: k for k in parent_kfids}}
 
-    # Map of direct foreign key descendancy from families down to genomic files
-    descendancy = {
-        "studies": [("families", None, "study_id", field("kf_id"))],
-        "families": [("participants", None, "family_id", field("kf_id"))],
-        "participants": [
-            ("family-relationships", None, "participant1_id", field("kf_id")),
-            ("family-relationships", None, "participant2_id", field("kf_id")),
-            ("outcomes", None, "participant_id", field("kf_id")),
-            ("phenotypes", None, "participant_id", field("kf_id")),
-            ("diagnoses", None, "participant_id", field("kf_id")),
-            ("biospecimens", None, "participant_id", field("kf_id")),
-        ],
-        "biospecimens": [
-            ("genomic-files", "biospecimen-genomic-files", "biospecimen_id", link("genomic_file")),
-            ("biospecimen-diagnoses", None, "biospecimen_id", field("kf_id"))
-        ],
-        "genomic-files": [
-            ("read-groups", None, "genomic_file_id", field("kf_id")),
-            ("read-group-genomic-files", None, "genomic_file_id", field("kf_id")),
-            ("sequencing-experiments", None, "genomic_file_id", field("kf_id")),
-            ("sequencing-experiment-genomic-files", None, "genomic_file_id", field("kf_id")),
-            ("biospecimen-genomic-files", None, "genomic_file_id", field("kf_id"))
-        ],
-    }
+    if use_api:
+        descendancy = _api_descendancy
+    else:
+        descendancy = _db_descendancy
+        db_conn = psycopg2.connect(api_or_db_url)
+        db_cur = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    def _inner(
-        host,
-        endpoint,
-        kfids,
-        ignore_gfs_with_hidden_external_contribs,
-        descendant_kfids,
-    ):
-        for (child_endpoint, via_endpoint, foreign_key, how) in descendancy.get(endpoint, []):
-            if via_endpoint is None:
-                via_endpoint = child_endpoint
-            descendant_kfids[child_endpoint] = set()
-            with ThreadPoolExecutor() as tpex:
-                futures = [
-                    tpex.submit(_accumulate, yield_entities, host, via_endpoint, {foreign_key: k}, show_progress=True)
-                    for k in kfids
-                ]
-                for f in as_completed(futures):
-                    for e in f.result():
-                        descendant_kfids[child_endpoint].add(how(e))
+    done = set()
+    for t in descendancy.keys():
+        if t != parent_type:
+            done.add(t)
+        else:
+            break
+
+    def _inner(parent_type, parent_kfids, descendants):
+        if parent_type in done:
+            return
+        done.add(parent_type)
+        for (child_type, link_on_parent, link_on_child) in descendancy.get(
+            parent_type, []
+        ):
+            if use_api:
+                with ThreadPoolExecutor() as tpex:
+                    futures = [
+                        tpex.submit(
+                            _accumulate,
+                            yield_entities,
+                            api_or_db_url,
+                            child_type,
+                            {link_on_child: k},
+                            show_progress=True,
+                        )
+                        for k in parent_kfids
+                    ]
+                    children = {
+                        e["kf_id"]: e
+                        for f in as_completed(futures)
+                        for e in f.result()
+                    }
+            else:
+                # special case for getting to families from studies
+                if parent_type == "study" and child_type == "family":
+                    query = (
+                        f"select distinct family.* from family join participant"
+                        " on participant.family_id = family.kf_id join study on"
+                        " participant.study_id = study.kf_id where study.kf_id "
+                        "in %s"
+                    )
+                else:
+                    query = (
+                        f"select distinct {child_type}.* from {child_type} join {parent_type}"
+                        f" on {child_type}.{link_on_child} = {parent_type}.{link_on_parent}"
+                        f" where {parent_type}.kf_id in %s"
+                    )
+                db_cur.execute(query, (tuple(parent_kfids),))
+                children = {c["kf_id"]: dict(c) for c in db_cur.fetchall()}
+
+            if children:
+                descendants[child_type] = descendants.get(child_type, dict())
+                descendants[child_type].update(children)
+
             if (
-                (child_endpoint == "genomic-files")
-                and ignore_gfs_with_hidden_external_contribs
-            ):
+                child_type == "genomic_file"
+            ) and ignore_gfs_with_hidden_external_contribs:
                 # Ignore multi-specimen genomic files that have hidden
                 # contributing specimens which are not in the descendants
                 extra_contrib_gfs = find_gfs_with_extra_contributors(
-                    host, descendant_kfids["biospecimens"],
-                    descendant_kfids["genomic-files"]
+                    api_or_db_url,
+                    descendants["biospecimen"],
+                    descendants["genomic_file"],
                 )
-                descendant_kfids["genomic-files"] -= extra_contrib_gfs["hidden"]
-                descendant_kfids["genomic-files"] -= extra_contrib_gfs["mixed_visibility"]
-        for (child_endpoint, via_endpoint, foreign_key, how) in descendancy.get(endpoint, []):
-            _inner(
-                host,
-                child_endpoint,
-                descendant_kfids[child_endpoint],
-                ignore_gfs_with_hidden_external_contribs,
-                descendant_kfids,
-            )
+                to_remove = (
+                    extra_contrib_gfs["hidden"]
+                    | extra_contrib_gfs["mixed_visibility"]
+                )
+                descendants["genomic_file"] = {
+                    k: v
+                    for k, v in descendants["genomic_file"].items()
+                    if k not in to_remove
+                }
+        for (child_type, _, _) in descendancy.get(parent_type, []):
+            if descendants.get(child_type):
+                _inner(child_type, descendants[child_type].keys(), descendants)
 
-    descendant_kfids = {start_endpoint: start_kfids}
-    _inner(
-        host,
-        start_endpoint,
-        start_kfids,
-        ignore_gfs_with_hidden_external_contribs,
-        descendant_kfids,
-    )
-    return descendant_kfids
+    _inner(parent_type, parent_kfids, descendants)
+
+    if not use_api:
+        descendants = {table_to_endpoint[k]: v for k, v in descendants.items()}
+
+    if kfids_only:
+        for k, v in descendants.items():
+            descendants[k] = set(descendants[k])
+
+    return descendants
 
 
 def find_descendants_by_filter(
-    host, endpoint, filter, ignore_gfs_with_hidden_external_contribs
+    api_url,
+    endpoint,
+    filter,
+    ignore_gfs_with_hidden_external_contribs,
+    kfids_only=True,
+    db_url=None
 ):
     """
-    Like find_descendants_by_kfids but starts with an endpoint filter instead
-    of a list of endpoint KFIDs.
+    Similar to find_descendants_by_kfids but starts with an API endpoint filter
+    instead of a list of endpoint KFIDs.
     """
-    endpoint_kfids = set(yield_kfids(host, endpoint, filter, show_progress=True))
-    kfid_sets = find_descendants_by_kfids(
-        host, endpoint, endpoint_kfids, ignore_gfs_with_hidden_external_contribs
+    things = list(
+        yield_entities(api_url, endpoint, filter, show_progress=True)
     )
-    return kfid_sets
+    if kfids_only:
+        things = [t["kf_id"] for t in things]
+    descendants = find_descendants_by_kfids(
+        db_url or api_url,
+        endpoint,
+        things,
+        ignore_gfs_with_hidden_external_contribs,
+        kfids_only=kfids_only,
+    )
+    return descendants
 
 
-def hide_descendants_by_filter(host, endpoint, filter, gf_acl=None):
+def hide_descendants_by_filter(api_url, endpoint, filter, gf_acl=None, db_url=None):
     """
     Be aware that this and unhide_descendants_by_filter are not symmetrical.
 
@@ -216,12 +429,12 @@ def hide_descendants_by_filter(host, endpoint, filter, gf_acl=None):
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_filter(host, endpoint, filter, False)
-    for k, v in desc.items():
-        hide_kfids(host, v, gf_acl)
+    desc = find_descendants_by_filter(api_url, endpoint, filter, False, db_url=db_url)
+    for v in desc.values():
+        hide_kfids(api_url, v, gf_acl)
 
 
-def unhide_descendants_by_filter(host, endpoint, filter):
+def unhide_descendants_by_filter(api_url, endpoint, filter, db_url=None):
     """
     Be aware that this and hide_descendants_by_filter are not symmetrical.
 
@@ -230,12 +443,12 @@ def unhide_descendants_by_filter(host, endpoint, filter):
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_filter(host, endpoint, filter, True)
-    for k, v in desc.items():
-        unhide_kfids(host, v)
+    desc = find_descendants_by_filter(api_url, endpoint, filter, True, db_url=db_url)
+    for v in desc.values():
+        unhide_kfids(api_url, v)
 
 
-def hide_descendants_by_kfids(host, endpoint, kfids, gf_acl=None):
+def hide_descendants_by_kfids(api_url, endpoint, kfids, gf_acl=None, db_url=None):
     """
     Be aware that this and unhide_descendants_by_kfids are not symmetrical.
 
@@ -244,12 +457,12 @@ def hide_descendants_by_kfids(host, endpoint, kfids, gf_acl=None):
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_kfids(host, endpoint, kfids, False)
-    for k, v in desc.items():
-        hide_kfids(host, v, gf_acl)
+    desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, False)
+    for v in desc.values():
+        hide_kfids(api_url, v, gf_acl)
 
 
-def unhide_descendants_by_kfids(host, endpoint, kfids):
+def unhide_descendants_by_kfids(api_url, endpoint, kfids, db_url=None):
     """
     Be aware that this and hide_descendants_by_kfids are not symmetrical.
 
@@ -258,6 +471,6 @@ def unhide_descendants_by_kfids(host, endpoint, kfids):
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_kfids(host, endpoint, kfids, True)
-    for k, v in desc.items():
-        unhide_kfids(host, v)
+    desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, True)
+    for v in desc.values():
+        unhide_kfids(api_url, v)

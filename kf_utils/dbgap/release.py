@@ -4,7 +4,7 @@ from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
 
 
-def get_latest_released_sample_status(phs_id):
+def get_latest_sample_status(phs_id, required_status="released"):
     """Get the most recently released sample status for a study on dbGaP
 
     :param phs_id: First part of study accession identifier, e.g. "phs001138"
@@ -17,7 +17,7 @@ def get_latest_released_sample_status(phs_id):
     version = None
     while True:
         phs_string = f"{phs_id}.v{version}" if version is not None else phs_id
-        print(f"Querying dbgap for study {phs_string}")
+        print(f"Querying dbGaP for study {phs_string}")
         url = (
             "https://www.ncbi.nlm.nih.gov/projects/gap/cgi-bin/"
             f"GetSampleStatus.cgi?study_id={phs_string}&rettype=xml"
@@ -41,17 +41,17 @@ def get_latest_released_sample_status(phs_id):
         data = xmltodict.parse(safe_xml)
         study = data["DbGap"]["Study"]
         accession = study["@accession"]
-        registration_status = study["@registration_status"]
+        status = study["@registration_status"]
 
-        if registration_status == "released":
+        if (required_status is None) or (status.lower() == required_status.lower()):
             break
         else:
             # try previous version
             version = int(accession.split(".")[1][1:]) - 1
             print(
-                f"Study {accession} is not 'released'. "
-                f"registration_status: {registration_status}"
+                f"Study {accession} is not '{required_status}'. "
+                f"registration_status: {status}"
             )
-            tried[accession] = registration_status
+            tried[accession] = status
 
     return accession, study

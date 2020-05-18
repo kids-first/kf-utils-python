@@ -33,6 +33,8 @@ def yield_entities(host, endpoint, filters, show_progress=False):
         res = j["results"]
         expected = j["total"]
 
+        if show_progress and not res:
+            print("o", end="", flush=True)
         for entity in res:
             kfid = entity["kf_id"]
             if kfid not in found_kfids:

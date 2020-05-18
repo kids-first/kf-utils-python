@@ -8,7 +8,7 @@ Python >= 3.6
 
 Using pip
 
-`pip install -e git+ssh://git@github.com/kids-first/kf-utils-python.git#egg=kf_utils`
+`pip install -e git+https://git@github.com/kids-first/kf-utils-python.git#egg=kf_utils`
 
 ## Included so far
 
@@ -47,25 +47,28 @@ descend from participants. Genomic files descend from biospecimens.
 When we change a set of entities (e.g. hiding or unhiding), we may also want to
 change their descendant entities.
 
+**NOTE: Where possible below, using the direct DB access URL will result in _much_ faster operation.**
+
 ```Python
 from kf_utils.dataservice.descendants import *
 
-host = "https://kf-api-dataservice.kidsfirstdrc.org"
+api_url = "https://kf-api-dataservice.kidsfirstdrc.org"
+db_url = f"postgres://{USER_NAME}:{PASSWORD}@kf-dataservice-api-prd-2019-9-11.c3siovbugjym.us-east-1.rds.amazonaws.com:5432/kfpostgresprd"
 
 # Get descendant entities for these families, including any genomic files that
 # are only partially composed of these families' biospecimens
 d1 = find_descendants_by_kfids(
-    host, "families", ["FM_11111111", "FM_22222222", "FM_33333333"],
-    ignore_gfs_with_hidden_external_contribs=False
+    db_url or api_url, "families", ["FM_11111111", "FM_22222222", "FM_33333333"],
+    ignore_gfs_with_hidden_external_contribs=False, kfids_only=False
 )
 ```
 
 ```Python
-# Get descendant entities for hidden families in SD_DYPMEHHF, but only include
+# Get descendant kfids for hidden families in SD_DYPMEHHF, but only include
 # genomic files with other contributing biospecimens if those specimens are visible
 d2 = find_descendants_by_filter(
-    host, "families", {"study_id": "SD_DYPMEHHF", "visible": False},
-    ignore_gfs_with_hidden_external_contribs=True
+    api_url, "families", {"study_id": "SD_DYPMEHHF", "visible": False},
+    ignore_gfs_with_hidden_external_contribs=True, kfids_only=True, db_url=db_url
 )
 ```
 
@@ -73,14 +76,17 @@ d2 = find_descendants_by_filter(
 # List genomic files with contributions from these biospecimens that also have
 # contributions from biospecimens that aren't these
 promiscuous_gs = find_gfs_with_extra_contributors(
-  host, ["BS_11111111", "BS_22222222", "BS_33333333"]
+  db_url or api_url, ["BS_11111111", "BS_22222222", "BS_33333333"]
 )
 ```
 
 ```Python
 # Hide all visible families in study SD_DYPMEHHF and all of their descendants.
+# Genomic files receive the specified acl.
 # This and unhide_descendants_by_filter are not symmetrical.
-hide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": True})
+hide_descendants_by_filter(
+  api_url, "families", {"study_id": "SD_DYPMEHHF", "visible": True}, gf_acl=["SD_DYPMEHHF", "phs001436.c999"], db_url=db_url
+)
 ```
 
 ```Python
@@ -88,22 +94,25 @@ hide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visibl
 # genomic files with additional contributing specimens if those specimens will remain
 # hidden.
 # This and hide_descendants_by_filter are not symmetrical.
-unhide_descendants_by_filter(host, "families", {"study_id": "SD_DYPMEHHF", "visible": False})
+unhide_descendants_by_filter(api_url, "families", {"study_id": "SD_DYPMEHHF", "visible": False}, db_url=db_url)
 ```
 
 `descendants.py` also provides wrapper functions hiding/unhiding descendants by KF ID(s):
 
 ```Python
-# Hide these families and all of their descendants.
+# Hide these families and all of their descendants. Genomic files receive the
+# specified acl.
 # This and unhide_descendants_by_kfids are not symmetrical.
-hide_descendants_by_kfids(host, "families", ["FM_12345678", "FM_87654321"])
+hide_descendants_by_kfids(
+  api_url, "families", ["FM_12345678", "FM_87654321"], gf_acl=["SD_DYPMEHHF", "phs001436.c999"], db_url=db_url
+)
 ```
 
 ```Python
 # Unhide these families and all of their descendants except for genomic files with
 # additional contributing specimens if those specimens will remain hidden.
 # This and hide_descendants_by_kfids are not symmetrical.
-unhide_descendants_kfids(host, "families", ["FM_12345678", "FM_87654321"])
+unhide_descendants_kfids(api_url, "families", ["FM_12345678", "FM_87654321"], db_url=db_url)
 ```
 
 #### [dataservice/patch.py](kf_utils/dataservice/patch.py) - Rapid patch submission
@@ -137,8 +146,8 @@ patch_things_with_func(host, things, my_patch_func)
 ```
 
 ```Python
-# Hide the given KFIDs
-hide_kfids(host, ["PT_12345678", "BS_99999999"])
+# Hide the given KFIDs and assign an empty acl to the hidden genomic file
+hide_kfids(host, ["PT_12345678", "GF_99999999"], gf_acl=[])
 ```
 
 ```Python

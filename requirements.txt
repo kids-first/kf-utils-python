@@ -1,3 +1,4 @@
-d3b_utils @ git+ssh://git@github.com/d3b-center/d3b-utils-python.git
+d3b_utils @ git+https://git@github.com/d3b-center/d3b-utils-python.git
 defusedxml
 xmltodict
+psycopg2-binary

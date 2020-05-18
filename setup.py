@@ -13,7 +13,7 @@ with open(path.join(root_dir, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="kf-utils",
-    version="0.1.0",
+    version="0.1.2",
     description="Reusable Kids First python utilities",
     long_description=long_description,
     long_description_content_type="text/markdown",
