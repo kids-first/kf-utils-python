@@ -1,4 +1,6 @@
 from d3b_utils.requests_retry import Session
+import logging
+logger = logging.getLogger(__name__)
 
 
 def yield_entities(host, endpoint, filters, show_progress=False):
@@ -20,8 +22,8 @@ def yield_entities(host, endpoint, filters, show_progress=False):
     endpoint = endpoint.strip("/")
     url = f"{host}/{endpoint}"
 
-    found_kfids = set()
     which = {"limit": 100}
+    count = 0
     expected = 0
     while True:
         resp = Session().get(url, params={**which, **filters})
@@ -33,23 +35,18 @@ def yield_entities(host, endpoint, filters, show_progress=False):
         res = j["results"]
         expected = j["total"]
 
-        if show_progress and not res:
-            print("o", end="", flush=True)
         for entity in res:
-            kfid = entity["kf_id"]
-            if kfid not in found_kfids:
-                found_kfids.add(kfid)
-                if show_progress:
-                    print(".", end="", flush=True)
-                yield entity
+            count += 1
+            if show_progress:
+                logger.info(
+                    f'Fetched {entity["kf_id"]}, {count} of {expected}'
+                )
+            yield entity
         try:
             for (key, i) in [("after", 1), ("after_uuid", 2)]:
                 which[key] = j["_links"]["next"].split("=")[i].split("&")[0]
         except KeyError:
             break
-
-    num = len(found_kfids)
-    assert expected == num, f"FOUND {num} ENTITIES BUT EXPECTED {expected}"
 
 
 def yield_kfids(host, endpoint, filters, show_progress=False):
