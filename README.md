@@ -112,7 +112,7 @@ hide_descendants_by_kfids(
 # Unhide these families and all of their descendants except for genomic files with
 # additional contributing specimens if those specimens will remain hidden.
 # This and hide_descendants_by_kfids are not symmetrical.
-unhide_descendants_kfids(api_url, "families", ["FM_12345678", "FM_87654321"], db_url=db_url)
+unhide_descendants_by_kfids(api_url, "families", ["FM_12345678", "FM_87654321"], db_url=db_url)
 ```
 
 #### [dataservice/patch.py](kf_utils/dataservice/patch.py) - Rapid patch submission
