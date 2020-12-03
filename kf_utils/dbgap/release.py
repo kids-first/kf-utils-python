@@ -1,7 +1,8 @@
 import xmltodict
 from d3b_utils.requests_retry import Session
-from defusedxml import ElementTree as DefusedET
-from defusedxml.common import DefusedXmlException
+from xml.etree import ElementTree 
+# from defusedxml import ElementTree as DefusedET
+# from defusedxml.common import DefusedXmlException
 
 
 def get_latest_sample_status(phs_id, required_status="released"):
@@ -30,15 +31,16 @@ def get_latest_sample_status(phs_id, required_status="released"):
                 f" - Tried: {tried}"
             )
 
-        try:
-            safe_xml = DefusedET.tostring(DefusedET.fromstring(data.content))
-        except DefusedXmlException as e:
-            raise Exception(
-                f"DETECTED UNSAFE XML -- {repr(e)} -- FROM {url}\n"
-                "SEE: https://github.com/tiran/defusedxml"
-            ).with_traceback(e.__traceback__)
+        # try:
+        #     xml = DefusedET.tostring(DefusedET.fromstring(data.content))
+        # except DefusedXmlException as e:
+        #     raise Exception(
+        #         f"DETECTED UNSAFE XML -- {repr(e)} -- FROM {url}\n"
+        #         "SEE: https://github.com/tiran/defusedxml"
+        #     ).with_traceback(e.__traceback__)
+        xml = ElementTree.tostring(ElementTree.fromstring(data.content))
 
-        data = xmltodict.parse(safe_xml)
+        data = xmltodict.parse(xml)
         study = data["DbGap"]["Study"]
         accession = study["@accession"]
         status = study["@registration_status"]
