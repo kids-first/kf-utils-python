@@ -290,6 +290,9 @@ def find_descendants_by_kfids(
         table_to_endpoint = {v: k for k, v in endpoint_to_table.items()}
         parent_type = endpoint_to_table[parent_endpoint]
 
+    if isinstance(parents, str):
+        parents = [parents]
+
     if isinstance(next(iter(parents), None), dict):
         parent_kfids = set(p["kf_id"] for p in parents)
         descendants = {parent_type: {p["kf_id"]: p for p in parents}}
