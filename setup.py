@@ -13,7 +13,11 @@ with open(path.join(root_dir, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="kf-utils",
-    version="0.1.2",
+    use_scm_version={
+        "local_scheme": "dirty-tag",
+        "version_scheme": "post-release",
+    },
+    setup_requires=["setuptools_scm"],
     description="Reusable Kids First python utilities",
     long_description=long_description,
     long_description_content_type="text/markdown",
