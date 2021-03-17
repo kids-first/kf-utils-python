@@ -1,0 +1,73 @@
+version: 2
+jobs:
+  lint:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - run:
+          name: black
+          command: |
+            pip install black
+            black --check --line-length 80 kf_utils
+      - run:
+          name: flake8
+          command: |
+            pip install flake8
+            flake8 --ignore=E501,W503,E203 kf_utils
+
+
+  test:
+    docker:
+      - image: circleci/python:3.7
+      - image: postgres:11.1
+        environment:
+          POSTGRES_USER: "postgres"
+          POSTGRES_DB: "test"
+          PG_USER: "postgres"
+          PG_NAME: "test"
+
+    steps:
+      - checkout
+
+      - run:
+          name: install dockerize
+          command: wget https://github.com/d3b-center/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && sudo tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          environment:
+            DOCKERIZE_VERSION: v0.6.1
+
+      - run:
+          name: start local dataservice
+          command: |
+            git clone --depth 1 https://github.com/kids-first/kf-api-dataservice.git
+            cd kf-api-dataservice
+            python3 -m venv dataservice_venv
+            source dataservice_venv/bin/activate
+            pip install -r requirements.txt
+            pip install -e .
+            flask db upgrade
+            flask db migrate
+            flask run
+          background: true
+          environment:
+            FLASK_APP: "manage"
+            PG_USER: "postgres"
+            PG_NAME: "test"
+
+      - run:
+          name: run tests
+          command: |
+            python3 -m venv client_venv
+            source client_venv/bin/activate
+            pip install -r dev-requirements.txt
+            pip install .
+            dockerize -wait http://localhost:5000 -timeout 5m
+            # pytest tests
+
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - lint
+      - test
