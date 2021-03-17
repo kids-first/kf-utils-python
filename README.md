@@ -8,7 +8,7 @@ Python >= 3.6
 
 Using pip
 
-`pip install -e git+https://github.com/kids-first/kf-utils-python.git#egg=kf_utils`
+`pip install git+https://github.com/kids-first/kf-utils-python.git`
 
 ## Included so far
 
@@ -24,13 +24,17 @@ of the entities from all of the pages for a given query.
 
 ```Python
 from kf_utils.dataservice.scrape import *
+```
 
+```Python
 # Yield all entities from the given endpoint matching the given query
 for e in yield_entities(
     kf_api_url, "participants", {"study_id": "SD_12345678"}
 ):
   ...
+```
 
+```Python
 # Like yield_entities but just yields the kfids
 for kfid in yield_kfids(
     kf_api_url, "participants", {"study_id": "SD_12345678"}
@@ -51,7 +55,9 @@ change their descendant entities.
 
 ```Python
 from kf_utils.dataservice.descendants import *
+```
 
+```Python
 api_url = "https://kf-api-dataservice.kidsfirstdrc.org"
 db_url = f"postgres://{USER_NAME}:{PASSWORD}@kf-dataservice-api-prd-2019-9-11.c3siovbugjym.us-east-1.rds.amazonaws.com:5432/kfpostgresprd"
 
@@ -121,7 +127,9 @@ Streamline patching the dataservice quickly.
 
 ```Python
 from kf_utils.dataservice.patch import *
+```
 
+```Python
 host = "http://localhost:5000"
 
 # Patch the given KFIDs with the given changes
@@ -155,13 +163,36 @@ hide_kfids(host, ["PT_12345678", "GF_99999999"], gf_acl=[])
 unhide_kfids(host, ["PT_12345678", "BS_99999999"])
 ```
 
+#### [dataservice/reporting.py](kf_utils/dataservice/reporting.py) - Generating reports
+
+```Python
+from kf_utils.dataservice.reporting import *
+```
+
+```Python
+# Generate a report on which S3 files have been loaded into the data service
+# and which loaded files no longer exist on S3 by merging the details together.
+
+ds_url = "https://kf-api-dataservice.kidsfirstdrc.org"
+study_kfid = "SD_12345678"
+study_bucket = "kf-study-us-east-1-prd-sd-12345678"
+exclude_s3_keypaths = ("path/with_files/I_don't_care_about", "another/one")
+
+# This can take a while to run because of API limitations.
+output = merge_s3_and_kf_gfs(
+    ds_url, study_kfid, study_bucket, exclude_s3_keypaths
+)
+```
+
 ### dbGaP
 
 #### [dbgap/release.py](kf_utils/dbgap/release.py) - dbGaP release XML scraping
 
 ```Python
 from kf_utils.dbgap.release import get_latest_released_sample_status
+```
 
+```Python
 # Get the sample status data for the latest "released" version of this study
 versioned_accession, study_data = get_latest_released_sample_status("phs001138")
 ```
