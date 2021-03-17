@@ -12,13 +12,12 @@ def send_patches(host, patches):
     :param patches: dict mapping KFIDs to patch dicts
     :raises Exception: if server doesn't respond OK
     """
+
     def do_patch(url, patch):
         msg = f"Patching {url} with {patch}"
         resp = Session().patch(url, json=patch)
         if not resp.ok:
-            raise Exception(
-                f"{resp.status_code} -- {msg} -- {resp.json()}"
-            )
+            raise Exception(f"{resp.status_code} -- {msg} -- {resp.json()}")
         return msg
 
     with ThreadPoolExecutor() as tpex:
@@ -41,8 +40,7 @@ def patch_things_with_func(host, things, patch_func):
         a dict to patch with based on the value or contents
     """
     patches = {
-        t["kf_id"] if isinstance(t, dict) else t: patch_func(t)
-        for t in things
+        t["kf_id"] if isinstance(t, dict) else t: patch_func(t) for t in things
     }
     send_patches(host, patches)
 

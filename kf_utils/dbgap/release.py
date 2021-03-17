@@ -1,6 +1,7 @@
 import xmltodict
 from d3b_utils.requests_retry import Session
-from xml.etree import ElementTree 
+from xml.etree import ElementTree
+
 # from defusedxml import ElementTree as DefusedET
 # from defusedxml.common import DefusedXmlException
 
@@ -27,8 +28,7 @@ def get_latest_sample_status(phs_id, required_status="released"):
         if data.status_code != 200:
             tried[phs_string] = f"status {data.status_code}"
             raise Exception(
-                f"Request for study {phs_id} failed."
-                f" - Tried: {tried}"
+                f"Request for study {phs_id} failed." f" - Tried: {tried}"
             )
 
         # try:
@@ -45,7 +45,9 @@ def get_latest_sample_status(phs_id, required_status="released"):
         accession = study["@accession"]
         status = study["@registration_status"]
 
-        if (required_status is None) or (status.lower() == required_status.lower()):
+        if (required_status is None) or (
+            status.lower() == required_status.lower()
+        ):
             break
         else:
             # try previous version

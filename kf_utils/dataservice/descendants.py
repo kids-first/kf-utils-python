@@ -9,7 +9,7 @@ import psycopg2
 import psycopg2.extras
 
 from kf_utils.dataservice.patch import hide_kfids, unhide_kfids
-from kf_utils.dataservice.scrape import yield_entities, yield_kfids
+from kf_utils.dataservice.scrape import yield_entities
 
 
 def _accumulate(func, *args, **kwargs):
@@ -24,11 +24,9 @@ _db_descendancy = {
         # We need to specially handle getting to families from studies, because
         # the database layout does not match the logical data arrangement, so
         # just add a stub here for family.
-        ("family", None, None)
+        ("family", None, None),
     ],
-    "family": [
-        ("participant", "kf_id", "family_id")
-    ],
+    "family": [("participant", "kf_id", "family_id")],
     "participant": [
         ("family_relationship", "kf_id", "participant1_id"),
         ("family_relationship", "kf_id", "participant2_id"),
@@ -182,9 +180,7 @@ def _find_gfs_with_extra_contributors_with_http_api(
             ]
             for f in as_completed(futures):
                 for bg in f.result():
-                    gf_kfids.add(
-                        bg["_links"]["genomic_file"].rsplit("/", 1)[1]
-                    )
+                    gf_kfids.add(bg["_links"]["genomic_file"].rsplit("/", 1)[1])
     else:
         gf_kfids = set(gf_kfids)
 
@@ -343,7 +339,7 @@ def find_descendants_by_kfids(
                 # special case for getting to families from studies
                 if parent_type == "study" and child_type == "family":
                     query = (
-                        f"select distinct family.* from family join participant"
+                        "select distinct family.* from family join participant"
                         " on participant.family_id = family.kf_id join study on"
                         " participant.study_id = study.kf_id where study.kf_id "
                         "in %s"
@@ -402,15 +398,13 @@ def find_descendants_by_filter(
     filter,
     ignore_gfs_with_hidden_external_contribs,
     kfids_only=True,
-    db_url=None
+    db_url=None,
 ):
     """
     Similar to find_descendants_by_kfids but starts with an API endpoint filter
     instead of a list of endpoint KFIDs.
     """
-    things = list(
-        yield_entities(api_url, endpoint, filter, show_progress=True)
-    )
+    things = list(yield_entities(api_url, endpoint, filter, show_progress=True))
     if kfids_only:
         things = [t["kf_id"] for t in things]
     descendants = find_descendants_by_kfids(
@@ -423,7 +417,9 @@ def find_descendants_by_filter(
     return descendants
 
 
-def hide_descendants_by_filter(api_url, endpoint, filter, gf_acl=None, db_url=None):
+def hide_descendants_by_filter(
+    api_url, endpoint, filter, gf_acl=None, db_url=None
+):
     """
     Be aware that this and unhide_descendants_by_filter are not symmetrical.
 
@@ -432,7 +428,9 @@ def hide_descendants_by_filter(api_url, endpoint, filter, gf_acl=None, db_url=No
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_filter(api_url, endpoint, filter, False, db_url=db_url)
+    desc = find_descendants_by_filter(
+        api_url, endpoint, filter, False, db_url=db_url
+    )
     for v in desc.values():
         hide_kfids(api_url, v, gf_acl)
 
@@ -446,12 +444,16 @@ def unhide_descendants_by_filter(api_url, endpoint, filter, db_url=None):
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_filter(api_url, endpoint, filter, True, db_url=db_url)
+    desc = find_descendants_by_filter(
+        api_url, endpoint, filter, True, db_url=db_url
+    )
     for v in desc.values():
         unhide_kfids(api_url, v)
 
 
-def hide_descendants_by_kfids(api_url, endpoint, kfids, gf_acl=None, db_url=None):
+def hide_descendants_by_kfids(
+    api_url, endpoint, kfids, gf_acl=None, db_url=None
+):
     """
     Be aware that this and unhide_descendants_by_kfids are not symmetrical.
 
