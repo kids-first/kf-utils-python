@@ -62,7 +62,7 @@ jobs:
             pip install -r dev-requirements.txt
             pip install .
             dockerize -wait http://localhost:5000 -timeout 5m
-            # pytest tests
+            pytest tests
 
 
 workflows:
