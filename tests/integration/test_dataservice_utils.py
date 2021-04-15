@@ -17,17 +17,18 @@ def test_delete_entities(dataservice_setup):
             for i in range(n_studies)
         ],
         "participants": [
-            {"kf_id": f"PT_{i}{j}111111", "gender": "Female",
-             "study_id": f"SD_{i}1111111"}
+            {
+                "kf_id": f"PT_{i}{j}111111",
+                "gender": "Female",
+                "study_id": f"SD_{i}1111111",
+            }
             for i in range(n_studies)
             for j in range(n_participants)
-        ]
+        ],
     }
     for endpoint, payloads in data.items():
         for p in payloads:
-            resp = requests.post(
-                f"{DATASERVICE_URL}/{endpoint}", json=p
-            )
+            resp = requests.post(f"{DATASERVICE_URL}/{endpoint}", json=p)
 
     # Delete first two studies
     sids = [s["kf_id"] for s in data["studies"][0:2]]

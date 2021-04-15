@@ -25,27 +25,21 @@ HOST = "http://localhost:5000"
         ("http://prd.dataservice.org", False, None, {"foo": "bar"}),
         ("http://10.10.1.191", True, MagicMock(), {"foo": "bar"}),
         ("http://10.10.1.191", False, None, {"foo": "bar"}),
-    ]
+    ],
 )
 def test_safe_delete(mocker, url, safety_check, mysession, kwargs):
     """
     Test kf_utils.dataservice.delete.safe_delete
     """
     # Setup mocks
-    mock_session = mocker.patch(
-        "kf_utils.dataservice.delete.Session"
-    )()
+    mock_session = mocker.patch("kf_utils.dataservice.delete.Session")()
 
     if safety_check and ("localhost" not in url):
         with pytest.raises(Exception) as e:
-            safe_delete(
-                url, safety_check=safety_check, session=session
-            )
+            safe_delete(url, safety_check=safety_check, session=session)
             assert "Safe delete is ENABLED" in str(e)
     else:
-        safe_delete(
-            url, safety_check=safety_check, session=mysession, **kwargs
-        )
+        safe_delete(url, safety_check=safety_check, session=mysession, **kwargs)
         if mysession:
             mock_session = mysession
         mock_session.delete.assert_called_with(url, **kwargs)
@@ -56,9 +50,7 @@ def test_delete_kfids(mocker):
     Test kf_utils.dataservice.delete.delete_kfids
     """
     # Setup mocks
-    mock_session = mocker.patch(
-        "kf_utils.dataservice.delete.Session"
-    )()
+    mock_session = mocker.patch("kf_utils.dataservice.delete.Session")()
     mock_resp = MagicMock()
     mock_session.delete.return_value = mock_resp
     kfids = [f"kfid{i}" for i in range(2)]
@@ -84,12 +76,8 @@ def test_delete_entities(mocker):
     """
     Test kf_utils.dataservice.delete.delete_entities
     """
-    mock_yield_kfids = mocker.patch(
-        "kf_utils.dataservice.delete.yield_kfids"
-    )
-    mock_delete_kfids = mocker.patch(
-        "kf_utils.dataservice.delete.delete_kfids"
-    )
+    mock_yield_kfids = mocker.patch("kf_utils.dataservice.delete.yield_kfids")
+    mock_delete_kfids = mocker.patch("kf_utils.dataservice.delete.delete_kfids")
     kfids = [f"kfid{i}" for i in range(2)]
     study_ids = [f"study{i}" for i in range(2)]
     mock_yield_kfids.return_value = kfids
@@ -99,14 +87,16 @@ def test_delete_entities(mocker):
     errors = delete_entities(HOST, study_ids=study_ids)
     assert not errors
     mock_delete_kfids.assert_has_calls(
-        [call(HOST, STUDIES, [sid], safety_check=True)
-         for sid in study_ids],
-        any_order=True
+        [call(HOST, STUDIES, [sid], safety_check=True) for sid in study_ids],
+        any_order=True,
     )
     mock_yield_kfids.assert_has_calls(
-        [call(HOST, e, {"study_id": sid})
-         for e in ENDPOINTS for sid in study_ids],
-        any_order=True
+        [
+            call(HOST, e, {"study_id": sid})
+            for e in ENDPOINTS
+            for sid in study_ids
+        ],
+        any_order=True,
     )
     mock_yield_kfids.reset_mock()
     mock_delete_kfids.reset_mock()
@@ -116,10 +106,13 @@ def test_delete_entities(mocker):
     errors = delete_entities(HOST, study_ids=None)
     assert not errors
     mock_yield_kfids.assert_has_calls(
-        [call(HOST, STUDIES, {})] +
-        [call(HOST, e, {"study_id": sid})
-         for e in ENDPOINTS for sid in study_ids],
-        any_order=True
+        [call(HOST, STUDIES, {})]
+        + [
+            call(HOST, e, {"study_id": sid})
+            for e in ENDPOINTS
+            for sid in study_ids
+        ],
+        any_order=True,
     )
     mock_yield_kfids.reset_mock()
     mock_delete_kfids.reset_mock()
