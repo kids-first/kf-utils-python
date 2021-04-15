@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from d3b_utils.requests_retry import Session
-from kf_utils.dataservice.meta import prefix_endpoints
+from kf_utils.dataservice.meta import get_endpoint
 
 
 def yield_entities_from_filter(host, endpoint, filters, show_progress=False):
@@ -75,8 +75,9 @@ def yield_entities_from_kfids(host, kfids, show_progress=False):
         return res
 
     with ThreadPoolExecutor() as tpex:
-        endpoint = prefix_endpoints[prefix(k)]
-        futures = [tpex.submit(do_get, f"{host}/{endpoint}/{k}") for k in kfids]
+        futures = [
+            tpex.submit(do_get, f"{host}/{get_endpoint(k)}/{k}") for k in kfids
+        ]
         for f in as_completed(futures):
             if show_progress:
                 print(".", end="", flush=True)
