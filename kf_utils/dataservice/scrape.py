@@ -1,7 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from d3b_utils.requests_retry import Session
+from kf_utils.dataservice.meta import prefix_endpoints
 
 
-def yield_entities(host, endpoint, filters, show_progress=False):
+def yield_entities_from_filter(host, endpoint, filters, show_progress=False):
     """
     Scrape the dataservice for paginated entities matching the filter params.
 
@@ -50,6 +53,65 @@ def yield_entities(host, endpoint, filters, show_progress=False):
 
     num = len(found_kfids)
     assert expected == num, f"FOUND {num} ENTITIES BUT EXPECTED {expected}"
+
+
+def yield_entities_from_kfids(host, kfids, show_progress=False):
+    """Fetch the given entities from the dataservice quickly.
+
+    :param host: dataservice base url string (e.g. "http://localhost:5000")
+    :param kfids: kfids to request entities for
+    :raises Exception: if the dataservice doesn't return status 200
+    :yields: entities for the given kfids
+    """
+    host = host.strip("/")
+
+    def do_get(url):
+        response = Session().get(url)
+        if response.status_code != 200:
+            raise Exception(response.text)
+        body = response.json()
+        res = body["results"]
+        res["_links"] = body["_links"]
+        return res
+
+    with ThreadPoolExecutor() as tpex:
+        endpoint = prefix_endpoints[prefix(k)]
+        futures = [tpex.submit(do_get, f"{host}/{endpoint}/{k}") for k in kfids]
+        for f in as_completed(futures):
+            if show_progress:
+                print(".", end="", flush=True)
+            yield f.result()
+
+
+def yield_entities(
+    host, endpoint_if_filter, filters_or_kfids, show_progress=False
+):
+    """Combined call for yield_entities_from_filter and
+    yield_entities_from_kfids to preserve backward compatibility because
+    yield_entities_from_filter was previously called yield_entities.
+
+    :param host: dataservice base url string (e.g. "http://localhost:5000")
+    :param endpoint_if_filter: dataservice endpoint string (e.g.
+    "genomic-files") or None :param filters_or_kfids: dict of filters to winnow
+    results from the dataservice (e.g. {"study_id": "SD_DYPMEHHF",
+    "external_id": "foo"}) or a list of kfids :raises Exception: if the
+    dataservice doesn't return status 200 :yields: matching entities
+    """
+    if isinstance(filters_or_kfids, str):
+        filters_or_kfids = [filters_or_kfids]
+
+    if isinstance(filters_or_kfids, dict):
+        assert endpoint_if_filter, "If filtering, must specify an endpoint"
+        return yield_entities_from_filter(
+            host,
+            endpoint_if_filter,
+            filters_or_kfids,
+            show_progress=show_progress,
+        )
+    else:
+        return yield_entities_from_kfids(
+            host, filters_or_kfids, show_progress=show_progress
+        )
 
 
 def yield_kfids(host, endpoint, filters, show_progress=False):

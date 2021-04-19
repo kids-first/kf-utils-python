@@ -14,7 +14,7 @@ def send_patches(host, patches):
     """
 
     def do_patch(url, patch):
-        msg = f"Patching {url} with {patch}"
+        msg = f"Patched {url} with {patch}"
         resp = Session().patch(url, json=patch)
         if not resp.ok:
             raise Exception(f"{resp.status_code} -- {msg} -- {resp.json()}")
@@ -71,3 +71,27 @@ def unhide_kfids(host, kfid_list):
     :param kfid_list: list of kfids to unhide
     """
     patch_things_with_func(host, kfid_list, lambda x: {"visible": True})
+
+
+def hide_entities(host, entities, gf_acl=None, dry_run=False):
+    """
+    Like hide_kfids but given whole entities so we can only patch the ones that
+    aren't already hidden.
+    """
+    to_hide = [e["kf_id"] for e in entities if e["visible"] is True]
+    if to_hide and not dry_run:
+        hide_kfids(host, to_hide, gf_acl)
+
+    return to_hide
+
+
+def unhide_entities(host, entities, dry_run=False):
+    """
+    Like unhide_kfids but given whole entities so we can only patch the ones that
+    aren't already visible.
+    """
+    to_show = [e["kf_id"] for e in entities if e["visible"] is False]
+    if to_show and not dry_run:
+        unhide_kfids(host, to_show)
+
+    return to_show

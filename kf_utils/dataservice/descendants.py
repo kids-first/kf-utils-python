@@ -7,8 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import psycopg2
 import psycopg2.extras
-
-from kf_utils.dataservice.patch import hide_kfids, unhide_kfids
+from kf_utils.dataservice.patch import hide_entities, unhide_entities
 from kf_utils.dataservice.scrape import yield_entities
 
 
@@ -286,6 +285,13 @@ def find_descendants_by_kfids(
         table_to_endpoint = {v: k for k, v in endpoint_to_table.items()}
         parent_type = endpoint_to_table[parent_endpoint]
 
+    if use_api:
+        descendancy = _api_descendancy
+    else:
+        descendancy = _db_descendancy
+        db_conn = psycopg2.connect(api_or_db_url)
+        db_cur = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
     if isinstance(parents, str):
         parents = [parents]
 
@@ -294,14 +300,19 @@ def find_descendants_by_kfids(
         descendants = {parent_type: {p["kf_id"]: p for p in parents}}
     else:
         parent_kfids = set(parents)
-        descendants = {parent_type: {k: k for k in parent_kfids}}
-
-    if use_api:
-        descendancy = _api_descendancy
-    else:
-        descendancy = _db_descendancy
-        db_conn = psycopg2.connect(api_or_db_url)
-        db_cur = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        if use_api:
+            descendants = {
+                parent_type: {
+                    e["kf_id"]: e
+                    for e in yield_entities(api_or_db_url, None, parent_kfids)
+                }
+            }
+        else:
+            query = f"select distinct * from {parent_type} where kf_id in %s"
+            db_cur.execute(query, (tuple(parent_kfids | {None}),))
+            descendants = {
+                parent_type: {p["kf_id"]: dict(p) for p in db_cur.fetchall()}
+            }
 
     done = set()
     for t in descendancy.keys():
@@ -350,7 +361,7 @@ def find_descendants_by_kfids(
                         f" on {child_type}.{link_on_child} = {parent_type}.{link_on_parent}"
                         f" where {parent_type}.kf_id in %s"
                     )
-                db_cur.execute(query, (tuple(parent_kfids),))
+                db_cur.execute(query, (tuple(parent_kfids | {None}),))
                 children = {c["kf_id"]: dict(c) for c in db_cur.fetchall()}
 
             if children:
@@ -407,6 +418,7 @@ def find_descendants_by_filter(
     things = list(yield_entities(api_url, endpoint, filter, show_progress=True))
     if kfids_only:
         things = [t["kf_id"] for t in things]
+
     descendants = find_descendants_by_kfids(
         db_url or api_url,
         endpoint,
@@ -418,7 +430,7 @@ def find_descendants_by_filter(
 
 
 def hide_descendants_by_filter(
-    api_url, endpoint, filter, gf_acl=None, db_url=None
+    api_url, endpoint, filter, gf_acl=None, db_url=None, dry_run=False
 ):
     """
     Be aware that this and unhide_descendants_by_filter are not symmetrical.
@@ -429,13 +441,22 @@ def hide_descendants_by_filter(
     change.
     """
     desc = find_descendants_by_filter(
-        api_url, endpoint, filter, False, db_url=db_url
+        api_url,
+        endpoint,
+        filter,
+        ignore_gfs_with_hidden_external_contribs=False,
+        kfids_only=False,
+        db_url=db_url,
     )
-    for v in desc.values():
-        hide_kfids(api_url, v, gf_acl)
+    changed = []
+    for es in desc.values():
+        changed.extend(hide_entities(api_url, es.values(), gf_acl, dry_run))
+    return changed
 
 
-def unhide_descendants_by_filter(api_url, endpoint, filter, db_url=None):
+def unhide_descendants_by_filter(
+    api_url, endpoint, filter, db_url=None, dry_run=False
+):
     """
     Be aware that this and hide_descendants_by_filter are not symmetrical.
 
@@ -445,14 +466,21 @@ def unhide_descendants_by_filter(api_url, endpoint, filter, db_url=None):
     change.
     """
     desc = find_descendants_by_filter(
-        api_url, endpoint, filter, True, db_url=db_url
+        api_url,
+        endpoint,
+        filter,
+        ignore_gfs_with_hidden_external_contribs=True,
+        kfids_only=False,
+        db_url=db_url,
     )
-    for v in desc.values():
-        unhide_kfids(api_url, v)
+    changed = []
+    for es in desc.values():
+        changed.extend(unhide_entities(api_url, es.values(), dry_run))
+    return changed
 
 
 def hide_descendants_by_kfids(
-    api_url, endpoint, kfids, gf_acl=None, db_url=None
+    api_url, endpoint, kfids, gf_acl=None, db_url=None, dry_run=False
 ):
     """
     Be aware that this and unhide_descendants_by_kfids are not symmetrical.
@@ -462,12 +490,22 @@ def hide_descendants_by_kfids(
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, False)
-    for v in desc.values():
-        hide_kfids(api_url, v, gf_acl)
+    desc = find_descendants_by_kfids(
+        db_url or api_url,
+        endpoint,
+        kfids,
+        ignore_gfs_with_hidden_external_contribs=False,
+        kfids_only=False,
+    )
+    changed = []
+    for es in desc.values():
+        changed.extend(hide_entities(api_url, es.values(), gf_acl, dry_run))
+    return changed
 
 
-def unhide_descendants_by_kfids(api_url, endpoint, kfids, db_url=None):
+def unhide_descendants_by_kfids(
+    api_url, endpoint, kfids, db_url=None, dry_run=False
+):
     """
     Be aware that this and hide_descendants_by_kfids are not symmetrical.
 
@@ -476,6 +514,14 @@ def unhide_descendants_by_kfids(api_url, endpoint, kfids, db_url=None):
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, True)
-    for v in desc.values():
-        unhide_kfids(api_url, v)
+    desc = find_descendants_by_kfids(
+        db_url or api_url,
+        endpoint,
+        kfids,
+        ignore_gfs_with_hidden_external_contribs=True,
+        kfids_only=False,
+    )
+    changed = []
+    for es in desc.values():
+        changed.extend(unhide_entities(api_url, es.values(), dry_run))
+    return changed
