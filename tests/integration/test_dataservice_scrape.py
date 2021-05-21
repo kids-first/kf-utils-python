@@ -1,56 +1,9 @@
-import requests
 from kf_utils.dataservice.scrape import (
     yield_entities,
     yield_entities_from_filter,
     yield_entities_from_kfids,
 )
-from tests.conftest import DATASERVICE_URL
-
-
-def create_sequencing_center():
-    requests.post(
-        f"{DATASERVICE_URL}/sequencing-centers",
-        json={"kf_id": "SC_11111111", "external_id": "x", "name": "x"},
-    )
-
-
-def create_study(si):
-    requests.post(
-        f"{DATASERVICE_URL}/studies",
-        json={"kf_id": f"SD_{si}1111111", "external_id": f"{si}"},
-    )
-
-
-def create_participant(si, pi):
-    requests.post(
-        f"{DATASERVICE_URL}/participants",
-        json={"kf_id": f"PT_{si}{pi}111111", "study_id": f"SD_{si}1111111", "external_id": f"{pi}"},
-    )
-
-
-def create_biospecimen(si, pi, bi):
-    requests.post(
-        f"{DATASERVICE_URL}/biospecimens",
-        json={
-            "kf_id": f"BS_{si}{pi}{bi}11111",
-            "participant_id": f"PT_{si}{pi}111111",
-            "external_sample_id": f"{pi}{bi}",
-            "external_aliquot_id": f"{pi}{bi}",
-            "sequencing_center_id": "SC_11111111",
-            "analyte_type": "DNA",
-        },
-    )
-
-
-def populate_data(n):
-    # Create some data in dataservice
-    create_sequencing_center()
-    for si in range(n):
-        create_study(si)
-        for pi in range(n):
-            create_participant(si, pi)
-            for bi in range(n):
-                create_biospecimen(si, pi, bi)
+from tests.conftest import DATASERVICE_URL, populate_data
 
 
 def test_yield_entities_from_filter(dataservice_setup):

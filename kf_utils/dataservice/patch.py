@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from d3b_utils.requests_retry import Session
-from kf_utils.dataservice.meta import prefix, prefix_endpoints
+from kf_utils.dataservice.meta import get_endpoint
 
 
 def send_patches(host, patches):
@@ -14,7 +14,7 @@ def send_patches(host, patches):
     """
 
     def do_patch(url, patch):
-        msg = f"Patching {url} with {patch}"
+        msg = f"Patched {url} with {patch}"
         resp = Session().patch(url, json=patch)
         if not resp.ok:
             raise Exception(f"{resp.status_code} -- {msg} -- {resp.json()}")
@@ -23,7 +23,7 @@ def send_patches(host, patches):
     with ThreadPoolExecutor() as tpex:
         futures = []
         for kfid, patch in patches.items():
-            endpoint = prefix_endpoints[prefix(kfid)]
+            endpoint = get_endpoint(kfid)
             url = f"{host}/{endpoint}/{kfid}"
             futures.append(tpex.submit(do_patch, url, patch))
         for f in as_completed(futures):
@@ -55,7 +55,7 @@ def hide_kfids(host, kfid_list, gf_acl=None):
     """
 
     def hide_function(k):
-        if prefix_endpoints[prefix(k)] == "genomic-files":
+        if get_endpoint(k) == "genomic-files":
             return {"visible": False, "acl": gf_acl or []}
         else:
             return {"visible": False}
@@ -71,3 +71,27 @@ def unhide_kfids(host, kfid_list):
     :param kfid_list: list of kfids to unhide
     """
     patch_things_with_func(host, kfid_list, lambda x: {"visible": True})
+
+
+def hide_entities(host, entities, gf_acl=None, dry_run=False):
+    """
+    Like hide_kfids but given whole entities so we can only patch the ones that
+    aren't already hidden.
+    """
+    to_hide = [e["kf_id"] for e in entities if e["visible"] is True]
+    if to_hide and not dry_run:
+        hide_kfids(host, to_hide, gf_acl)
+
+    return to_hide
+
+
+def unhide_entities(host, entities, dry_run=False):
+    """
+    Like unhide_kfids but given whole entities so we can only patch the ones that
+    aren't already visible.
+    """
+    to_show = [e["kf_id"] for e in entities if e["visible"] is False]
+    if to_show and not dry_run:
+        unhide_kfids(host, to_show)
+
+    return to_show
