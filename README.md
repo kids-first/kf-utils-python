@@ -28,17 +28,38 @@ from kf_utils.dataservice.delete import delete_entities
 ```
 
 ```Python
-# Yield all entities from the given endpoint matching the given query
-for e in yield_entities(
-    kf_api_url, "participants", {"study_id": "SD_12345678"}
+# Yield all entities from the given endpoint matching the given filter query
+for e in yield_entities_from_filter(
+    kf_api_url, "participants", {"study_id": "SD_12345678"}, show_progress=True
 ):
   ...
 ```
 
 ```Python
-# Like yield_entities but just yields the kfids
+# Yield all entities matching the given kfids
+for e in yield_entities_from_kfids(
+    kf_api_url, ["PT_12345678", "BS_99999999"], show_progress=True
+):
+  ...
+```
+
+```Python
+# Compatibility wrapper for yielding entities from kfid or a filter query
+for e in yield_entities(
+    kf_api_url, "participants", {"study_id": "SD_12345678"}, show_progress=True
+):
+  ...
+
+for e in yield_entities(
+    kf_api_url, None, ["PT_12345678", "BS_99999999"], show_progress=True
+):
+  ...
+```
+
+```Python
+# Like yield_entities_from_filter but just yields the kfids
 for kfid in yield_kfids(
-    kf_api_url, "participants", {"study_id": "SD_12345678"}
+    kf_api_url, "participants", {"study_id": "SD_12345678"}, show_progress=True
 ):
   ...
 ```

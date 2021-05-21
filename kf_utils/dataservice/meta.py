@@ -26,3 +26,7 @@ prefix_endpoints = {
 
 def prefix(kfid):
     return kfid.split("_")[0]
+
+
+def get_endpoint(kfid):
+    return prefix_endpoints[prefix(kfid)]

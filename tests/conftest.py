@@ -1,7 +1,8 @@
 import pytest
 from kf_utils.dataservice.delete import delete_entities
 
-DATASERVICE_URL="http://localhost:5000"
+DATASERVICE_URL = "http://localhost:5000"
+
 
 @pytest.fixture
 def dataservice_setup():
@@ -11,4 +12,3 @@ def dataservice_setup():
     delete_entities(DATASERVICE_URL)
     yield
     delete_entities(DATASERVICE_URL)
-
