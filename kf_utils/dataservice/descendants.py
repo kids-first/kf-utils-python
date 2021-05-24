@@ -286,6 +286,13 @@ def find_descendants_by_kfids(
         table_to_endpoint = {v: k for k, v in endpoint_to_table.items()}
         parent_type = endpoint_to_table[parent_endpoint]
 
+    if use_api:
+        descendancy = _api_descendancy
+    else:
+        descendancy = _db_descendancy
+        db_conn = psycopg2.connect(api_or_db_url)
+        db_cur = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
     if isinstance(parents, str):
         parents = [parents]
 
@@ -294,14 +301,19 @@ def find_descendants_by_kfids(
         descendants = {parent_type: {p["kf_id"]: p for p in parents}}
     else:
         parent_kfids = set(parents)
-        descendants = {parent_type: {k: k for k in parent_kfids}}
-
-    if use_api:
-        descendancy = _api_descendancy
-    else:
-        descendancy = _db_descendancy
-        db_conn = psycopg2.connect(api_or_db_url)
-        db_cur = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        if use_api:
+            descendants = {
+                parent_type: {
+                    e["kf_id"]: e
+                    for e in yield_entities(api_or_db_url, None, parent_kfids)
+                }
+            }
+        else:
+            query = f"select distinct * from {parent_type} where kf_id in %s"
+            db_cur.execute(query, (tuple(parent_kfids | {None}),))
+            descendants = {
+                parent_type: {p["kf_id"]: dict(p) for p in db_cur.fetchall()}
+            }
 
     done = set()
     for t in descendancy.keys():
@@ -350,7 +362,7 @@ def find_descendants_by_kfids(
                         f" on {child_type}.{link_on_child} = {parent_type}.{link_on_parent}"
                         f" where {parent_type}.kf_id in %s"
                     )
-                db_cur.execute(query, (tuple(parent_kfids),))
+                db_cur.execute(query, (tuple(parent_kfids | {None}),))
                 children = {c["kf_id"]: dict(c) for c in db_cur.fetchall()}
 
             if children:
@@ -407,6 +419,7 @@ def find_descendants_by_filter(
     things = list(yield_entities(api_url, endpoint, filter, show_progress=True))
     if kfids_only:
         things = [t["kf_id"] for t in things]
+
     descendants = find_descendants_by_kfids(
         db_url or api_url,
         endpoint,
