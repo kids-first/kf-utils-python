@@ -7,7 +7,7 @@ from tests.conftest import DATASERVICE_URL, populate_data
 
 
 def test_yield_entities_from_filter(dataservice_setup):
-    n = 4
+    n = 2
     populate_data(n)
 
     si = 1
@@ -35,7 +35,7 @@ def test_yield_entities_from_filter(dataservice_setup):
 
 
 def test_yield_entities_from_kfids(dataservice_setup):
-    n = 4
+    n = 2
     populate_data(n)
 
     kfid_set = {"SD_11111111", "PT_11111111", "BS_11111111"}
