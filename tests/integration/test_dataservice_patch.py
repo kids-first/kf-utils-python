@@ -12,9 +12,9 @@ from tests.conftest import DATASERVICE_URL, populate_data
 
 
 def test_hide_unhide_kfids(dataservice_setup):
-    n = 4
+    n = 2
     kfids = populate_data(n)
-    to_hide = {"PT_11111111", "BS_12111111"}
+    to_hide = {"PT_00111111", "BS_11111111"}
 
     hide_kfids(DATASERVICE_URL, to_hide)
     for e in yield_entities_from_kfids(DATASERVICE_URL, kfids):
@@ -26,9 +26,9 @@ def test_hide_unhide_kfids(dataservice_setup):
 
 
 def test_hide_unhide_entities(dataservice_setup):
-    n = 4
+    n = 2
     kfids = populate_data(n)
-    to_hide = {"PT_11111111", "BS_12111111"}
+    to_hide = {"PT_00111111", "BS_11111111"}
 
     hide_kfids(DATASERVICE_URL, to_hide)
     entities = list(yield_entities_from_kfids(DATASERVICE_URL, kfids))
