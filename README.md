@@ -115,7 +115,7 @@ d2 = find_descendants_by_filter(
 # List genomic files with contributions from these biospecimens that also have
 # contributions from biospecimens that aren't these
 promiscuous_gs = find_gfs_with_extra_contributors(
-  db_url or api_url, ["BS_11111111", "BS_22222222", "BS_33333333"]
+    db_url or api_url, ["BS_11111111", "BS_22222222", "BS_33333333"]
 )
 ```
 
@@ -124,7 +124,7 @@ promiscuous_gs = find_gfs_with_extra_contributors(
 # Genomic files receive the specified acl.
 # This and unhide_descendants_by_filter are not symmetrical.
 hide_descendants_by_filter(
-  api_url, "families", {"study_id": "SD_DYPMEHHF", "visible": True}, gf_acl=["SD_DYPMEHHF", "phs001436.c999"], db_url=db_url
+    api_url, "families", {"study_id": "SD_DYPMEHHF", "visible": True}, gf_acl=["SD_DYPMEHHF", "phs001436.c999"], db_url=db_url, dry_run=False
 )
 ```
 
@@ -133,7 +133,9 @@ hide_descendants_by_filter(
 # genomic files with additional contributing specimens if those specimens will remain
 # hidden.
 # This and hide_descendants_by_filter are not symmetrical.
-unhide_descendants_by_filter(api_url, "families", {"study_id": "SD_DYPMEHHF", "visible": False}, db_url=db_url)
+unhide_descendants_by_filter(
+    api_url, "families", {"study_id": "SD_DYPMEHHF", "visible": False}, db_url=db_url, dry_run=False
+)
 ```
 
 `descendants.py` also provides wrapper functions hiding/unhiding descendants by KF ID(s):
@@ -143,7 +145,7 @@ unhide_descendants_by_filter(api_url, "families", {"study_id": "SD_DYPMEHHF", "v
 # specified acl.
 # This and unhide_descendants_by_kfids are not symmetrical.
 hide_descendants_by_kfids(
-  api_url, "families", ["FM_12345678", "FM_87654321"], gf_acl=["SD_DYPMEHHF", "phs001436.c999"], db_url=db_url
+    api_url, "families", ["FM_12345678", "FM_87654321"], gf_acl=["SD_DYPMEHHF", "phs001436.c999"], db_url=db_url, dry_run=False
 )
 ```
 
@@ -151,7 +153,9 @@ hide_descendants_by_kfids(
 # Unhide these families and all of their descendants except for genomic files with
 # additional contributing specimens if those specimens will remain hidden.
 # This and hide_descendants_by_kfids are not symmetrical.
-unhide_descendants_by_kfids(api_url, "families", ["FM_12345678", "FM_87654321"], db_url=db_url)
+unhide_descendants_by_kfids(
+    api_url, "families", ["FM_12345678", "FM_87654321"], db_url=db_url, dry_run=False
+)
 ```
 
 #### [dataservice/patch.py](kf_utils/dataservice/patch.py) - Rapid patch submission
@@ -167,16 +171,16 @@ host = "http://localhost:5000"
 
 # Patch the given KFIDs with the given changes
 patches = {
-  "PT_12345678": {"visible": True},
-  "BS_99999999": {"participant_id": "PT_12345678", "visible": False}
+    "PT_12345678": {"visible": True},
+    "BS_99999999": {"participant_id": "PT_12345678", "visible": False}
 }
 send_patches(host, patches)
 ```
 
 ```Python
 things = [
-  {"kf_id": "PT_11223344", "visible": True},
-  {"kf_id": "PT_22334455", "visible": False}
+    {"kf_id": "PT_11223344", "visible": True},
+    {"kf_id": "PT_22334455", "visible": False}
 ]
 
 def my_patch_func(thing):

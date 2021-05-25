@@ -7,8 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import psycopg2
 import psycopg2.extras
-
-from kf_utils.dataservice.patch import hide_kfids, unhide_kfids
+from kf_utils.dataservice.patch import hide_entities, unhide_entities
 from kf_utils.dataservice.scrape import yield_entities
 
 
@@ -431,7 +430,7 @@ def find_descendants_by_filter(
 
 
 def hide_descendants_by_filter(
-    api_url, endpoint, filter, gf_acl=None, db_url=None
+    api_url, endpoint, filter, gf_acl=None, db_url=None, dry_run=False
 ):
     """
     Be aware that this and unhide_descendants_by_filter are not symmetrical.
@@ -442,13 +441,22 @@ def hide_descendants_by_filter(
     change.
     """
     desc = find_descendants_by_filter(
-        api_url, endpoint, filter, False, db_url=db_url
+        api_url,
+        endpoint,
+        filter,
+        ignore_gfs_with_hidden_external_contribs=False,
+        kfids_only=False,
+        db_url=db_url,
     )
-    for v in desc.values():
-        hide_kfids(api_url, v, gf_acl)
+    changed = []
+    for es in desc.values():
+        changed.extend(hide_entities(api_url, es.values(), gf_acl, dry_run))
+    return changed
 
 
-def unhide_descendants_by_filter(api_url, endpoint, filter, db_url=None):
+def unhide_descendants_by_filter(
+    api_url, endpoint, filter, db_url=None, dry_run=False
+):
     """
     Be aware that this and hide_descendants_by_filter are not symmetrical.
 
@@ -458,14 +466,21 @@ def unhide_descendants_by_filter(api_url, endpoint, filter, db_url=None):
     change.
     """
     desc = find_descendants_by_filter(
-        api_url, endpoint, filter, True, db_url=db_url
+        api_url,
+        endpoint,
+        filter,
+        ignore_gfs_with_hidden_external_contribs=True,
+        kfids_only=False,
+        db_url=db_url,
     )
-    for v in desc.values():
-        unhide_kfids(api_url, v)
+    changed = []
+    for es in desc.values():
+        changed.extend(unhide_entities(api_url, es.values(), dry_run))
+    return changed
 
 
 def hide_descendants_by_kfids(
-    api_url, endpoint, kfids, gf_acl=None, db_url=None
+    api_url, endpoint, kfids, gf_acl=None, db_url=None, dry_run=False
 ):
     """
     Be aware that this and unhide_descendants_by_kfids are not symmetrical.
@@ -475,12 +490,22 @@ def hide_descendants_by_kfids(
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, False)
-    for v in desc.values():
-        hide_kfids(api_url, v, gf_acl)
+    desc = find_descendants_by_kfids(
+        db_url or api_url,
+        endpoint,
+        kfids,
+        ignore_gfs_with_hidden_external_contribs=False,
+        kfids_only=False,
+    )
+    changed = []
+    for es in desc.values():
+        changed.extend(hide_entities(api_url, es.values(), gf_acl, dry_run))
+    return changed
 
 
-def unhide_descendants_by_kfids(api_url, endpoint, kfids, db_url=None):
+def unhide_descendants_by_kfids(
+    api_url, endpoint, kfids, db_url=None, dry_run=False
+):
     """
     Be aware that this and hide_descendants_by_kfids are not symmetrical.
 
@@ -489,6 +514,14 @@ def unhide_descendants_by_kfids(api_url, endpoint, kfids, db_url=None):
     If you anticipate needing symmetrical behavior, keep a record of what you
     change.
     """
-    desc = find_descendants_by_kfids(db_url or api_url, endpoint, kfids, True)
-    for v in desc.values():
-        unhide_kfids(api_url, v)
+    desc = find_descendants_by_kfids(
+        db_url or api_url,
+        endpoint,
+        kfids,
+        ignore_gfs_with_hidden_external_contribs=True,
+        kfids_only=False,
+    )
+    changed = []
+    for es in desc.values():
+        changed.extend(unhide_entities(api_url, es.values(), dry_run))
+    return changed
