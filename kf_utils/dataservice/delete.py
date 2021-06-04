@@ -1,10 +1,9 @@
-import logging
+from concurrent.futures import ThreadPoolExecutor
 from pprint import pformat
 from urllib.parse import urlparse
 
-import requests
 from d3b_utils.requests_retry import Session
-
+from kf_utils.dataservice.meta import get_endpoint
 from kf_utils.dataservice.scrape import yield_kfids
 
 # DO NOT RE-ORDER - deletion requires this order
@@ -29,72 +28,36 @@ LOCAL_HOSTS = {
     "127.0.0.1",
 }
 
-logger = logging.getLogger(__name__)
 
-
-def safe_delete(url, safety_check=True, session=None, **kwargs):
+def delete_kfids(host, kfids, safety_check=True):
     """
-    Only delete a non-local resource if safety_check is False.
+    Rapidly delete entities by KF ID. Default behavior only deletes resources
+    at localhost unless safety_check=False
 
-    :param url: url of resource that will be deleted
-    :type url: url
-    :param saftey_check: Whether to delete if resource is not at localhost
-    :type safety_check: bool
-    :param session: requests session object to use when deleting
-    :type session: requests.Session
-    :param kwargs: Keyword args passed to requests.Session.delete
-    :type kwarrgs: dict
-
-    :returns: requests.Response from the delete
-    :raises: Exception if safety_check=True and url is non-local
-    """
-    host = urlparse(url).netloc.split(":")[0]
-    if safety_check and (host not in LOCAL_HOSTS):
-        raise Exception(
-            f"Cannot delete {url}. Safe delete is ENABLED. Resources that are "
-            "not on localhost will not be deleted. You can try again with "
-            "safe delete disabled."
-        )
-
-    session = session or Session()
-    resp = session.delete(url, **kwargs)
-    return resp
-
-
-def delete_kfids(host, endpoint, kfids, safety_check=True):
-    """
-    Delete entities by KF ID. Default behavior only deletes resources at
-    localhost unless safety_check=False
-
-    :param host: URL of the Data Service
+    :param host: dataservice base url string (e.g. "http://localhost:5000")
     :type host: str
-    :param endpoint: Data Service endpoint
-    :type endpoint: str
     :param kfids: Data Service Kids First IDs
     :type kfids: iterable of strs
-    :param saftey_check: Whether to delete if resource is not at localhost
-    :type safety_check: bool
-
-    :returns: Dict of errors where Keys are urls that failed delete (non 200
-    status code) and values are requests.Response objects
     """
-    session = Session()
-    errors = {}
-    kf_ids = [kfid for kfid in kfids]
-    total = len(kf_ids)
-    for i, kf_id in enumerate(kf_ids):
-        url = f"{host}/{endpoint.strip('/')}/{kf_id}"
-        logger.info(f"Deleting {i+1} of {total}: {url}")
-        resp = safe_delete(url, session=session, safety_check=safety_check)
-        try:
-            resp.raise_for_status()
-        except requests.exceptions.HTTPError:
-            logger.error(
-                f"Failed to delete {url}, status code {resp.status_code}. "
-                f"Response:\n{resp.text}"
-            )
-            errors[url] = resp
-    return errors
+    kfids = list(kfids)
+    host = host.strip("/")
+    base = urlparse(host).netloc.split(":")[0]
+    if safety_check and (base not in LOCAL_HOSTS):
+        raise Exception(
+            f"Cannot delete from {host} because safety_check is ENABLED. "
+            f"Resources that are not in {LOCAL_HOSTS} will not be deleted "
+            "unless you set safety_check=False."
+        )
+
+    def delete(u):
+        return Session().delete(u)
+
+    total = len(kfids)
+    with ThreadPoolExecutor(max_workers=5) as tpex:
+        for i, f in enumerate(
+            tpex.map(delete, [f"{host}/{get_endpoint(k)}/{k}" for k in kfids])
+        ):
+            print(f"Deleted {i+1} of {total}: {f.url}")
 
 
 def delete_entities(host, study_ids=None, safety_check=True):
@@ -107,7 +70,7 @@ def delete_entities(host, study_ids=None, safety_check=True):
     Deletion is implemented in a way that avoids large cascading deletions in
     the Data Service database. Large cascading deletes are known to crash
     the Data Service. For example, first we delete genomic files, then
-    biospecimens, and then participants rather than deleting participants
+    biospecimens, and then participants rather than deleting participants first
     since that would cause a cascading delete of the specimens and their
     genomic files. The order in which entities are deleted is defined in
     ENDPOINTS.
@@ -119,30 +82,42 @@ def delete_entities(host, study_ids=None, safety_check=True):
     :type study_ids: list of str
     :param saftey_check: Whether to delete if resource is not at localhost
     :type safety_check: bool
-
-    :returns: Dict of errors where Keys are urls that failed delete (non 200
-    status code) and values are requests.Response objects
     """
     phrase = f"studies {pformat(study_ids)}" if study_ids else "all studies"
-    logger.info(f"Deleting {phrase} from {host}")
+    print(f"Deleting {phrase} from {host}")
 
-    # Get all study ids
-    if not study_ids:
-        study_ids = yield_kfids(host, "studies", {})
+    if study_ids:
+        # Delete entities by study id
+        for study_id in study_ids:
+            # Delete entities except "study" (it has to be handled differently)
+            for endpoint in ENDPOINTS:
+                print(f"Finding all {endpoint} from study {study_id}.")
+                kfids = yield_kfids(
+                    host, endpoint, {"study_id": study_id}, show_progress=True
+                )
+                if kfids:
+                    print(f"Deleting all {endpoint} from study {study_id}.")
+                    delete_kfids(host, kfids, safety_check=safety_check)
+                else:
+                    print(f"No {endpoint} found.")
 
-    # Delete entities by study id
-    errors = {}
-    for study_id in study_ids:
-        # Delete entities except "study" (it has to be handled differently)
+            # Delete study by its kfid
+            delete_kfids(host, [study_id], safety_check=safety_check)
+    else:
+        # Delete everything
         for endpoint in ENDPOINTS:
-            params = {"study_id": study_id}
-            kfids = yield_kfids(host, endpoint, params)
-            errors.update(
-                delete_kfids(host, endpoint, kfids, safety_check=safety_check)
-            )
-        # Delete study by its kfid
-        errors.update(
-            delete_kfids(host, STUDIES, [study_id], safety_check=safety_check)
-        )
+            print(f"Finding all {endpoint}.")
+            kfids = yield_kfids(host, endpoint, {}, show_progress=True)
+            if kfids:
+                print(f"Deleting all {endpoint}.")
+                delete_kfids(host, kfids, safety_check=safety_check)
+            else:
+                print(f"No {endpoint} found.")
 
-    return errors
+        print(f"Finding all {STUDIES}.")
+        kfids = yield_kfids(host, STUDIES, {}, show_progress=True)
+        if kfids:
+            print(f"Deleting all {STUDIES}.")
+            delete_kfids(host, kfids, safety_check=safety_check)
+        else:
+            print(f"No {STUDIES} found.")

@@ -25,7 +25,7 @@ def create_sequencing_center():
 
 
 def create_study(si):
-    kfid = f"SD_{si}1111111"
+    kfid = f"SD_{si}".ljust(11, "1")
     requests.post(
         f"{DATASERVICE_URL}/studies",
         json={"kf_id": kfid, "external_id": f"{si}"},
@@ -34,12 +34,12 @@ def create_study(si):
 
 
 def create_participant(si, pi):
-    kfid = f"PT_{si}{pi}111111"
+    kfid = f"PT_{si}{pi}".ljust(11, "1")
     requests.post(
         f"{DATASERVICE_URL}/participants",
         json={
             "kf_id": kfid,
-            "study_id": f"SD_{si}1111111",
+            "study_id": f"SD_{si}".ljust(11, "1"),
             "external_id": f"{pi}",
         },
     )
@@ -47,12 +47,12 @@ def create_participant(si, pi):
 
 
 def create_biospecimen(si, pi, bi):
-    kfid = f"BS_{si}{pi}{bi}11111"
+    kfid = f"BS_{si}{pi}{bi}".ljust(11, "1")
     requests.post(
         f"{DATASERVICE_URL}/biospecimens",
         json={
             "kf_id": kfid,
-            "participant_id": f"PT_{si}{pi}111111",
+            "participant_id": f"PT_{si}{pi}".ljust(11, "1"),
             "external_sample_id": f"{pi}{bi}",
             "external_aliquot_id": f"{pi}{bi}",
             "sequencing_center_id": "SC_11111111",
@@ -62,14 +62,18 @@ def create_biospecimen(si, pi, bi):
     return kfid
 
 
-def populate_data(n):
+def populate_data(ns, np=None, nb=None):
+    if np is None:
+        np = ns
+    if nb is None:
+        nb = np
     # Create some data in dataservice
     kfids = []
     kfids.append(create_sequencing_center())
-    for si in range(n):
+    for si in range(ns):
         kfids.append(create_study(si))
-        for pi in range(n):
+        for pi in range(np):
             kfids.append(create_participant(si, pi))
-            for bi in range(n):
+            for bi in range(nb):
                 kfids.append(create_biospecimen(si, pi, bi))
     return kfids

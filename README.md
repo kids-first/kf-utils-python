@@ -16,6 +16,27 @@ n.b. View individual files for informative docstrings and other usage comments.
 
 ### Dataservice
 
+#### [dataservice/delete.py](kf_utils/dataservice/delete.py) - Study deletion
+
+```Python
+from kf_utils.dataservice.delete import delete_entities
+```
+
+```Python
+# Delete all studies in Dataservice (raises Exception on deletion of non-local resources)
+delete_entities(kf_api_url, study_ids=None)
+```
+
+```Python
+# Delete a study in Dataservice (raises Exception on deletion of non-local resources)
+delete_entities(kf_api_url, study_ids=["SD_12345678"])
+```
+
+```Python
+# Delete a study in Dataservice (allows deletion of non-local resources)
+delete_entities(kf_api_url, study_ids=["SD_12345678"], safety_check=False)
+```
+
 #### [dataservice/scrape.py](kf_utils/dataservice/scrape.py) - Query scraping
 
 The Kids First dataservice paginates its responses and can only return up
@@ -24,7 +45,6 @@ of the entities from all of the pages for a given query.
 
 ```Python
 from kf_utils.dataservice.scrape import *
-from kf_utils.dataservice.delete import delete_entities
 ```
 
 ```Python
@@ -62,17 +82,6 @@ for kfid in yield_kfids(
     kf_api_url, "participants", {"study_id": "SD_12345678"}, show_progress=True
 ):
   ...
-```
-
-```Python
-# Delete all studies in Dataservice (raises Exception on deletion of non-local resources)
-delete_entities(kf_api_url, study_ids=None)
-
-# Delete a study in Dataservice (raises Exception on deletion of non-local resources)
-delete_entities(kf_api_url, study_ids=["SD_12345678"])
-
-# Delete a study in Dataservice (allows deletion of non-local resources)
-delete_entities(kf_api_url, study_ids=["SD_12345678"], safety_check=False)
 ```
 
 #### [dataservice/descendants.py](kf_utils/dataservice/descendants.py) - Descendant entity discovery

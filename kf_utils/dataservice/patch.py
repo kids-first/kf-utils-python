@@ -12,6 +12,7 @@ def send_patches(host, patches):
     :param patches: dict mapping KFIDs to patch dicts
     :raises Exception: if server doesn't respond OK
     """
+    host = host.strip("/")
 
     def do_patch(url, patch):
         msg = f"Patched {url} with {patch}"
