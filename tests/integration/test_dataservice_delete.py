@@ -1,4 +1,4 @@
-from tests.conftest import DATASERVICE_URL
+from tests.conftest import DATASERVICE_URL, populate_data
 
 import requests
 from kf_utils.dataservice.delete import delete_entities, ENDPOINTS, STUDIES
@@ -56,3 +56,10 @@ def test_delete_entities(dataservice_setup):
     for endpoint in ENDPOINTS + [STUDIES]:
         resp = requests.get(f"{DATASERVICE_URL}/{endpoint}")
         assert resp.json()["total"] == 0
+
+
+def test_delete_many(dataservice_setup):
+    # iterating the wrong way clogs an executor
+    # see https://github.com/kids-first/kf-utils-python/pull/36#pullrequestreview-685334120
+    populate_data(1, 500, 0)
+    delete_entities(DATASERVICE_URL)

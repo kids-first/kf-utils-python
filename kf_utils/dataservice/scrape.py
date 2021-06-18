@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from d3b_utils.requests_retry import Session
 from kf_utils.dataservice.meta import get_endpoint
+from tqdm import tqdm
 
 
 def yield_entities_from_filter(host, endpoint, filters, show_progress=False):
@@ -26,30 +27,35 @@ def yield_entities_from_filter(host, endpoint, filters, show_progress=False):
     found_kfids = set()
     which = {"limit": 100}
     expected = 0
-    while True:
-        resp = Session().get(url, params={**which, **filters})
+    with tqdm(total=1, disable=not show_progress, leave=False) as pbar:
+        while True:
+            resp = Session().get(url, params={**which, **filters})
 
-        if resp.status_code != 200:
-            raise Exception(resp.text)
+            if resp.status_code != 200:
+                raise Exception(resp.text)
 
-        j = resp.json()
-        res = j["results"]
-        expected = j["total"]
+            j = resp.json()
+            if j["total"] != expected:
+                n = pbar.n
+                pbar.reset(j["total"])
+                pbar.update(n)
 
-        if show_progress and not res:
-            print("o", end="", flush=True)
-        for entity in res:
-            kfid = entity["kf_id"]
-            if kfid not in found_kfids:
-                found_kfids.add(kfid)
-                if show_progress:
-                    print(".", end="", flush=True)
-                yield entity
-        try:
-            for (key, i) in [("after", 1), ("after_uuid", 2)]:
-                which[key] = j["_links"]["next"].split("=")[i].split("&")[0]
-        except KeyError:
-            break
+            expected = j["total"]
+            res = j["results"]
+
+            if not res:
+                pbar.close()
+            for entity in res:
+                kfid = entity["kf_id"]
+                if kfid not in found_kfids:
+                    found_kfids.add(kfid)
+                    pbar.update()
+                    yield entity
+            try:
+                for (key, i) in [("after", 1), ("after_uuid", 2)]:
+                    which[key] = j["_links"]["next"].split("=")[i].split("&")[0]
+            except KeyError:
+                break
 
     num = len(found_kfids)
     assert expected == num, f"FOUND {num} ENTITIES BUT EXPECTED {expected}"
@@ -65,7 +71,11 @@ def yield_entities_from_kfids(host, kfids, show_progress=False):
     """
     host = host.strip("/")
 
+    quit = False
+
     def do_get(url):
+        if quit:
+            return
         response = Session().get(url)
         if response.status_code != 200:
             raise Exception(response.text)
@@ -78,10 +88,16 @@ def yield_entities_from_kfids(host, kfids, show_progress=False):
         futures = [
             tpex.submit(do_get, f"{host}/{get_endpoint(k)}/{k}") for k in kfids
         ]
-        for f in as_completed(futures):
-            if show_progress:
-                print(".", end="", flush=True)
-            yield f.result()
+        with tqdm(total=len(kfids), disable=not show_progress) as pbar:
+            try:
+                for f in as_completed(futures):
+                    pbar.update()
+                    yield f.result()
+            except KeyboardInterrupt:
+                quit = True
+                tpex.shutdown(wait=False)
+                tpex._threads.clear()
+                raise
 
 
 def yield_entities(
