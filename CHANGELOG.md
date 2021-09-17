@@ -1,5 +1,17 @@
 # Kids First Reusable Python Utilities Change History
 
+## Release 0.4.1
+
+### Summary
+
+- Emojis: 🔊 x1
+- Categories: Additions x1
+
+### New features and changes
+
+- [#38](https://github.com/kids-first/kf-utils-python/pull/38) - 🔊 Print the dbgap manifest URL - [b4699b42](https://github.com/kids-first/kf-utils-python/commit/b4699b42489123d6982834cf3970e5d9de542fc4) by [fiendish](https://github.com/fiendish)
+
+
 ## Release 0.4.0
 
 ### Summary
