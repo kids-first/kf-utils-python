@@ -19,11 +19,14 @@ def get_latest_sample_status(phs_id, required_status="released"):
     version = None
     while True:
         phs_string = f"{phs_id}.v{version}" if version is not None else phs_id
-        print(f"Querying dbGaP for study {phs_string}")
         url = (
             "https://www.ncbi.nlm.nih.gov/projects/gap/cgi-bin/"
             f"GetSampleStatus.cgi?study_id={phs_string}&rettype=xml"
         )
+
+        print(f"Querying dbGaP for study {phs_string}")
+        print(f"Manifest URL -> {url}")
+
         data = Session(status_forcelist=(502, 503, 504)).get(url)
         if data.status_code != 200:
             tried[phs_string] = f"status {data.status_code}"
