@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from d3b_utils.requests_retry import Session
+# from d3b_utils.requests_retry import Session
+from requests import Session
 from kf_utils.dataservice.meta import get_endpoint
 from tqdm import tqdm
 

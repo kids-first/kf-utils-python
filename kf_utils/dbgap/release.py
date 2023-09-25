@@ -1,5 +1,6 @@
 import xmltodict
-from d3b_utils.requests_retry import Session
+# from d3b_utils.requests_retry import Session
+from requests import Session
 from xml.etree import ElementTree
 
 # from defusedxml import ElementTree as DefusedET
