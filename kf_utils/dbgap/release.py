@@ -1,4 +1,5 @@
 import xmltodict
+
 # from d3b_utils.requests_retry import Session
 from requests import Session
 from xml.etree import ElementTree
@@ -28,7 +29,8 @@ def get_latest_sample_status(phs_id, required_status="released"):
         print(f"Querying dbGaP for study {phs_string}")
         print(f"Manifest URL -> {url}")
 
-        data = Session(status_forcelist=(502, 503, 504)).get(url)
+        # data = Session(status_forcelist=(502, 503, 504)).get(url)
+        data = Session().get(url)
         if data.status_code != 200:
             tried[phs_string] = f"status {data.status_code}"
             raise Exception(
