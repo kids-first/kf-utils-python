@@ -1,3 +1,4 @@
+from pprint import pformat
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # from d3b_utils.requests_retry import Session
@@ -16,10 +17,15 @@ def send_patches(host, patches):
     host = host.strip("/")
 
     def do_patch(url, patch):
-        msg = f"Patched {url} with {patch}"
         resp = Session().patch(url, json=patch)
         if not resp.ok:
-            raise Exception(f"{resp.status_code} -- {msg} -- {resp.json()}")
+            msg = f"Patched {url} with {patch}"
+            raise Exception(
+                f"{resp.status_code} -- {msg} -- Response:\n{resp.text}"
+            )
+        else:
+            msg = f"Patched {url} with {patch}. Response:\n{pformat(resp.json())}"
+
         return msg
 
     with ThreadPoolExecutor() as tpex:
