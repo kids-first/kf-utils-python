@@ -2,7 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pprint import pformat
 from urllib.parse import urlparse
 
-from d3b_utils.requests_retry import Session
+# from d3b_utils.requests_retry import Session
+from requests import Session
 from kf_utils.dataservice.meta import get_endpoint
 from kf_utils.dataservice.scrape import yield_kfids
 

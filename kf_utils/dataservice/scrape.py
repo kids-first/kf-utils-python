@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from d3b_utils.requests_retry import Session
+# from d3b_utils.requests_retry import Session
+from requests import Session
 from kf_utils.dataservice.meta import get_endpoint
 from tqdm import tqdm
 
@@ -52,7 +53,7 @@ def yield_entities_from_filter(host, endpoint, filters, show_progress=False):
                     pbar.update()
                     yield entity
             try:
-                for (key, i) in [("after", 1), ("after_uuid", 2)]:
+                for key, i in [("after", 1), ("after_uuid", 2)]:
                     which[key] = j["_links"]["next"].split("=")[i].split("&")[0]
             except KeyError:
                 break
