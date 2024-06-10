@@ -14,6 +14,7 @@ prefix_endpoints = {
     "PT": "participants",
     "RF": "read-group-genomic-files",
     "RG": "read-groups",
+    "SA": "samples",
     "SC": "sequencing-centers",
     "SD": "studies",
     "SE": "sequencing-experiments",
