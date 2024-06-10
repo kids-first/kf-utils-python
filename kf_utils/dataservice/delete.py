@@ -21,6 +21,7 @@ ENDPOINTS = [
     "participants",
     "family-relationships",
     "families",
+    "sample",
 ]
 STUDIES = "studies"
 LOCAL_HOSTS = {
