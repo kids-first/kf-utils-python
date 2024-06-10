@@ -18,10 +18,10 @@ ENDPOINTS = [
     "outcomes",
     "phenotypes",
     "diagnoses",
+    "samples",
     "participants",
     "family-relationships",
     "families",
-    "sample",
 ]
 STUDIES = "studies"
 LOCAL_HOSTS = {
