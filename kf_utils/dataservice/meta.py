@@ -20,6 +20,7 @@ prefix_endpoints = {
     "SE": "sequencing-experiments",
     "SF": "study-files",
     "SG": "sequencing-experiment-genomic-files",
+    "SR": "sample-relationships",
     "TG": "task-genomic-files",
     "TK": "tasks",
 }

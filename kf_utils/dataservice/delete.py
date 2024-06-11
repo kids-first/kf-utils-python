@@ -19,6 +19,7 @@ ENDPOINTS = [
     "phenotypes",
     "diagnoses",
     "samples",
+    "sample-relationships",
     "participants",
     "family-relationships",
     "families",
