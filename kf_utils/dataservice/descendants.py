@@ -325,7 +325,7 @@ def find_descendants_by_kfids(
         if parent_type in done:
             return
         done.add(parent_type)
-        for (child_type, link_on_parent, link_on_child) in descendancy.get(
+        for child_type, link_on_parent, link_on_child in descendancy.get(
             parent_type, []
         ):
             if use_api:
@@ -387,7 +387,7 @@ def find_descendants_by_kfids(
                     for k, v in descendants["genomic_file"].items()
                     if k not in to_remove
                 }
-        for (child_type, _, _) in descendancy.get(parent_type, []):
+        for child_type, _, _ in descendancy.get(parent_type, []):
             if descendants.get(child_type):
                 _inner(child_type, descendants[child_type].keys(), descendants)
 
